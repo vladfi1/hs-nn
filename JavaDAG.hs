@@ -147,14 +147,14 @@ main = do
   loss <- runAnyAutoEncoder autoEncoder parsed
   
   let train = do
-      tape <- newIORef []
-      resetNode loss
-      error <- evalNodeTape tape loss
-      print error
-      
-      setLearningRate (-0.001) loss
-      backprop =<< readIORef tape
-      traverse learn params
+        tape <- newIORef []
+        resetNode loss
+        error <- evalNodeTape tape loss
+        print error
+        
+        setLearningRate (-0.001) loss
+        backprop =<< readIORef tape
+        traverse learn params
 
   traverse (const train) [1..1000]
 

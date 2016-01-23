@@ -79,7 +79,7 @@ instance (Default a, Usable a, IntegralS s, KnownSize s tIn, KnownSize s tOut) =
   defM = LinearT <$> defM
 
 --linear :: Numeric a => Linear a outDim inDim -> Repr a inDim -> IO (Node (Tensor a '[outDim]))
---linear (Linear m) (Repr v) = makeMV m v
+--linear (Linear m) (Repr v) = makeNode mvFun m v
 
 linearT :: (SingI (Size s tOut), IntegralS s, Usable a) => LinearT a s tOut tIn -> ReprT a s tIn -> IO (ReprT a s tOut)
 linearT (LinearT m) (ReprT v) = ReprT <$> makeMV m v
@@ -246,7 +246,7 @@ autoDecodeRec autoDecoders Dict (DecodeParams aff params) = AutoDecoder f where
     Repr node <- affine' aff (Repr $ runReprT parent)
     let i = ns2int (unSOP children)
     
-    prob <- makeSelect i node
+    prob <- makeNode (selectFun i) node
     log_score <- makeUnary (negate . log) prob
     
     let childReprs = liftA_SOP getRepr children

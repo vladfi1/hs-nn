@@ -25,7 +25,7 @@ $(singletons [d|
     pred Z = error "pred Z"
     pred (S n) = n
 
-    toEnum n = if n == 0 then Z else S $ toEnum (n-1)
+    toEnum n = if n == 0 then Z else S (toEnum (n-1))
 
     fromEnum Z = 0
     fromEnum (S n) = 1 + (fromEnum n)

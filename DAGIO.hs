@@ -15,7 +15,9 @@ import Data.Vinyl
 import Data.Vinyl.Functor
 import VinylUtils
 
+import Control.Applicative hiding (Const)
 import Control.Monad
+import Data.Traversable
 
 import VarArgs
 
@@ -23,10 +25,6 @@ import Data.Default
 import DefaultM
 
 import Numeric.AD
-
---import qualified Algebra.Additive as Additive
-
-import Prelude hiding (curry, uncurry)
 
 data Some f where
   Some :: f a -> Some f
@@ -45,16 +43,16 @@ data Node (output :: *) where
 
 makeSource :: (Num a) => a -> IO (Node a)
 makeSource a = do
-  output' <- newIORef (Identity a)
-  updated' <- newIORef True
-  gradOutput' <- newIORef 0
+  output <- newIORef (Identity a)
+  updated <- newIORef True
+  gradOutput <- newIORef 0
   return Node
     { forward = \RNil -> Identity a
     , inputs = RNil
-    , output = output'
-    , updated = updated'
+    , output = output
+    , updated = updated
     , backwards = \RNil _ -> RNil
-    , gradOutput = gradOutput'
+    , gradOutput = gradOutput
     }
 
 instance (Num a, Default a) => DefaultM IO (Node a) where
@@ -62,27 +60,33 @@ instance (Num a, Default a) => DefaultM IO (Node a) where
 
 -- these types are somewhat less general than would be ideal
 makeUnary :: (Floating a) => (forall b. Floating b => b -> b) -> Node a -> IO (Node a)
-makeUnary f = makeNode (uncurry1 f, \inputs output -> (output * uncurry1 (diff f) inputs) :& RNil)
+makeUnary f = makeNode $ GradFunc (uncurry1 f) (\inputs output -> (output * uncurry1 (diff f) inputs) :& RNil)
 
 makeBinary :: (Num a) => (forall b. Num b => b -> b -> b) -> Node a -> Node a -> IO (Node a)
-makeBinary f = makeNode (uncurry2 f, g) where
+makeBinary f = makeNode $ GradFunc (uncurry2 f) g where
   g (x :& y :& RNil) output = dx :& dy :& RNil
     where [dx, dy] = map (output *) $ grad (\[a, b] -> f a b) [x, y]
 
-makeNode :: (Num output) => Curry Node inputs (IO (Node output)) c => (HList inputs -> Identity output, HList inputs -> Identity output -> HList inputs) -> c
-makeNode (f, b) = curry g where
-  g inputs' = do
-    ins <- rtraverse readNode inputs'
-    output' <- newIORef (f ins)
-    updated' <- newIORef True
-    gradOutput' <- newIORef 0
+data GradFunc inputs output =
+  GradFunc
+    { function :: HList inputs -> Identity output
+    , gradient :: HList inputs -> Identity output -> HList inputs
+    }
+
+makeNode :: (Num output) => Curry Node inputs (IO (Node output)) c => GradFunc inputs output -> c
+makeNode GradFunc{..} = VarArgs.curry f where
+  f inputs = do
+    ins <- rtraverse readNode inputs
+    output <- newIORef (function ins)
+    updated <- newIORef True
+    gradOutput <- newIORef 0
     return Node
-      { forward = f
-      , inputs = inputs'
-      , output = output'
-      , updated = updated'
-      , backwards = b
-      , gradOutput = gradOutput'
+      { forward = function
+      , inputs = inputs
+      , output = output
+      , updated = updated
+      , backwards = gradient
+      , gradOutput = gradOutput
       }
 
 readNode :: Node output -> IO (Identity output)
@@ -100,8 +104,9 @@ evalNode' :: Node output -> IO (Identity output)
 evalNode' node@Node{..} = do
   done <- readIORef updated
   unless done $ do
-    ins <- rtraverse evalNode' inputs
-    unless (rnull ins) $ writeIORef output (forward ins)
+    unless (rnull inputs) $ do
+      ins <- rtraverse evalNode' inputs
+      writeIORef output (forward ins)
     writeIORef updated True
   readIORef output
 
@@ -109,6 +114,7 @@ evalNode node = getIdentity <$> evalNode' node
 
 type Tape = [Some Node]
 
+-- records the nodes traversed, in reverse order
 evalNodeTape :: IORef Tape -> Node output -> IO (Identity output)
 evalNodeTape tape node@Node{..} = do
   done <- readIORef updated
@@ -134,7 +140,7 @@ learn (Some Node{..}) = do
   grad <- readIORef gradOutput
   modifyIORef output (grad+)
 
-
+{-
 testGrad = do
   param <- makeSource 0
   loss <- makeUnary id param
@@ -151,7 +157,7 @@ testGrad = do
   
   g <- readIORef $ gradOutput param
   print g
-
+-}
 
 {- pull-based backprop scrapped in favor of tape version
 resetGrad :: Node output -> IO ()

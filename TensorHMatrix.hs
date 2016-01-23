@@ -21,10 +21,10 @@ import Data.Vinyl
 
 import Prelude hiding (zipWith)
 
-type Usable a = (Element a, Num a, Numeric a, Num (Vector a), Container Vector a)
-
 type IntegralK (p :: KProxy k) = (SingKind p, Integral (DemoteRep p))
 type IntegralN (n :: k) = IntegralK ('KProxy :: KProxy k)
+
+type Usable a = (Element a, Num a, Numeric a, Num (Vector a), Container Vector a)
 
 natVal' :: (Num a, IntegralN n) => Sing n -> a
 natVal' = fromIntegral . fromSing
@@ -157,7 +157,7 @@ asCol (Vector v) = Matrix $ asColumn v
 asRow' :: Storable a => Tensor '[n] a -> Tensor '[FromInteger 1, n] a
 asRow' (Vector v) = Matrix $ asRow v
 
-dot :: (Storable a, Numeric a) => Tensor '[n] a -> Tensor '[n] a -> a
+dot :: Numeric a => Tensor '[n] a -> Tensor '[n] a -> a
 dot (Vector a) (Vector b) = a <.> b
 
 mv :: Numeric a => Tensor '[n, m] a -> Tensor '[m] a -> Tensor '[n] a

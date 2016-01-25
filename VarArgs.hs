@@ -26,16 +26,8 @@ instance Curry f '[] r r where
 instance Curry f l r c => Curry f (a ': l) r (f a -> c) where
   curry f a = curry (\args -> f $ a :& args)
 
-uncurry0 :: r -> HList '[] -> Identity r
-uncurry0 r RNil = Identity r
-
-uncurry1 :: (a -> r) -> HList '[a] -> Identity r
-uncurry1 f (Identity a :& l) = uncurry0 (f a) l
-
-uncurry2 :: (a -> b -> r) -> HList '[a, b] -> Identity r
-uncurry2 f (Identity a :& l) = uncurry1 (f a) l
-
--- use singletons instead of a custom class?
+-- this class isn't too useful, since it requires an Identity around
+-- the function's return type in order to determine how far to uncurry
 class Uncurry l r c | l r -> c, c -> l, c -> r where
   uncurry :: c -> HList l -> r
 
@@ -46,13 +38,32 @@ instance Uncurry l r c => Uncurry (a ': l) r (a -> c) where
   uncurry f (Identity a :& args) = uncurry (f a) args
 
 {-
-class Uncurry n f l r c | l -> n, n c -> l, n c -> r where
-  uncurry :: SNat n -> c -> Rec f l -> r
+type family UncurryN (n :: Nat) (f :: *) :: (l :: [*]) where
+  UncurryN Z r = '[r]
+  UncurryN (S n) (a -> f) = a ': UncurryN n f
 
-instance Uncurry Z f '[] r r where
-  uncurry SZ r RNil = r
+uncurryN :: SNat n -> f -> 
 -}
 
---instance Uncurry n f l r c => Uncurry (S n) f (a ': l) r (a -> c) where
---  uncurry (SS n) f (Identity a :& args) = uncurry n (f a) args
+class UncurryN n c l r | n c -> l, n c -> r, l -> n, l r -> c where
+  uncurryN :: SNat n -> c -> HList l -> Identity r
+
+instance UncurryN Z r '[] r where
+  uncurryN SZ r RNil = Identity r
+
+instance UncurryN n c l r => UncurryN (S n) (a -> c) (a ': l) r where
+  uncurryN (SS n) f (Identity a :& args) = uncurryN n (f a) args
+
+
+uncurry0 :: r -> HList '[] -> Identity r
+--uncurry0 r RNil = Identity r
+uncurry0 = uncurryN s0
+
+uncurry1 :: (a -> r) -> HList '[a] -> Identity r
+--uncurry1 f (Identity a :& l) = uncurry0 (f a) l
+uncurry1 = uncurryN s1
+
+uncurry2 :: (a -> b -> r) -> HList '[a, b] -> Identity r
+--uncurry2 f (Identity a :& l) = uncurry1 (f a) l
+uncurry2 = uncurryN s2
 

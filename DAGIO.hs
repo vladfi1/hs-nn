@@ -1,7 +1,6 @@
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds, PolyKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -20,11 +19,10 @@ import Control.Monad
 import Data.Traversable
 
 import VarArgs
+import Gradients
 
 import Data.Default
 import DefaultM
-
-import Numeric.AD
 
 data Some f where
   Some :: f a -> Some f
@@ -57,21 +55,6 @@ makeSource a = do
 
 instance (Num a, Default a) => DefaultM IO (Node a) where
     defM = makeSource def
-
--- these types are somewhat less general than would be ideal
-makeUnary :: (Floating a) => (forall b. Floating b => b -> b) -> Node a -> IO (Node a)
-makeUnary f = makeNode $ GradFunc (uncurry1 f) (\inputs output -> (output * uncurry1 (diff f) inputs) :& RNil)
-
-makeBinary :: (Num a) => (forall b. Num b => b -> b -> b) -> Node a -> Node a -> IO (Node a)
-makeBinary f = makeNode $ GradFunc (uncurry2 f) g where
-  g (x :& y :& RNil) output = dx :& dy :& RNil
-    where [dx, dy] = map (output *) $ grad (\[a, b] -> f a b) [x, y]
-
-data GradFunc inputs output =
-  GradFunc
-    { function :: HList inputs -> Identity output
-    , gradient :: HList inputs -> Identity output -> HList inputs
-    }
 
 makeNode :: (Num output) => Curry Node inputs (IO (Node output)) c => GradFunc inputs output -> c
 makeNode GradFunc{..} = VarArgs.curry f where

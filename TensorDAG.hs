@@ -5,19 +5,13 @@ module TensorDAG where
 
 import Data.Vinyl
 import Data.Vinyl.Functor
-import Data.Singletons
-import Numeric.LinearAlgebra (Numeric)
+--import Data.Singletons
+--import Numeric.LinearAlgebra (Numeric)
 
-import TensorHMatrix
-import DAGIO
+import GenericTensor
+import Gradients
 import VarArgs
 
-makeGrad1 :: (a -> b -> a) -> HList '[a] -> Identity b -> HList '[a]
-makeGrad1 g (Identity a :& RNil) (Identity b) = Identity (g a b) :& RNil
-
-makeGrad2 :: (a -> b -> c -> (a, b)) -> HList '[a, b] -> Identity c -> HList '[a, b]
-makeGrad2 g (Identity a :& Identity b :& RNil) (Identity c) = Identity a' :& Identity b' :& RNil
-  where (a', b') = g a b c
 
 dotFun :: (Numeric a) => GradFunc '[Tensor '[n] a, Tensor '[n] a] a
 dotFun = GradFunc (uncurry2 dot) (makeGrad2 gradDot)

@@ -3,22 +3,40 @@
   TypeFamilies,
   PolyKinds,
   DataKinds,
-  TypeOperators
+  TypeOperators,
+  FlexibleContexts,
+  RankNTypes,
+  InstanceSigs,
+  ScopedTypeVariables
   #-}
 
 module TensorAccelerate where
 
 import Data.Array.Accelerate as A
-import Generics.SOP.Constraint
+import Data.Singletons
+import Generics.SOP.Constraint (And)
 import GenericTensor
 
 type family Dims2Shape (dims :: [k]) :: * where
   Dims2Shape '[] = Z
   Dims2Shape (n ': dims) = Dims2Shape dims :. Int
 
-data ATensor (dims :: [k]) a where
-  ATensor :: (sh ~ Dims2Shape dims, Shape sh, Elt a) => Acc (Array sh a) -> ATensor dims a
+data SDims dims where
+  DimsZ :: SDims '[]
+  DimsS :: SDimsI dims => SDims (a ': dims)
 
+class (Shape (Dims2Shape dims)) => SDimsI dims where
+  sDims :: SDims dims
+
+instance SDimsI '[] where
+  sDims = DimsZ
+
+instance SDimsI dims => SDimsI (a ': dims) where
+  sDims = DimsS
+
+data ATensor (dims :: [k]) a where
+  ATensor :: (SDimsI dims, Elt a) => Acc (Array (Dims2Shape dims) a) -> ATensor dims a
+  
 instance Tensor ATensor where
   type N ATensor = And Elt IsNum
   
@@ -31,7 +49,6 @@ instance Tensor ATensor where
   
   dot (ATensor a) (ATensor b) = ATensor $ A.fold (+) 0 $ A.zipWith (*) a b
   
-  --mv :: (N t a) => t '[n, m] a -> t '[m] a -> t '[n] a
   mv (ATensor m) (ATensor v) = ATensor $ A.fold (+) 0 $ A.zipWith (*) m vs
     where
       n = indexHead . indexTail $ shape m
@@ -41,5 +58,16 @@ instance Tensor ATensor where
   mm :: (N t a) => t '[n, m] a -> t '[m, p] a -> t '[n, p] a
   -}
   
-  select :: N t a => Int -> t (n ': dims) a -> t dims a
-  select i 
+  {-
+  select :: forall n dims a. (N ATensor a) => Int -> ATensor (n ': dims) a -> ATensor dims a
+  select i (ATensor a) =
+    case (sDims :: SDims (n ': dims)) of
+      DimsS -> ATensor $ slice a (lift $ Any :. i)
+  -}
+  
+  select i (ATensor a) = ATensor $ slice a (lift $ Any :. i)
+  
+  -- FIXME: constant has bad performance?
+  oneHot :: forall n a. (N ATensor a, SingI n, IntegralN n) => Int -> ATensor '[n] a
+  oneHot i = ATensor $ generate (constant $ Z :. natVal' (sing :: Sing n)) (\j -> cond (constant i ==* unindex1 j) 1 0)
+

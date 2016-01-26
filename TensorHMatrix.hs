@@ -8,6 +8,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module TensorHMatrix where
 
@@ -23,13 +24,7 @@ import GenericTensor
 
 import Prelude hiding (zipWith)
 
-type IntegralK (p :: KProxy k) = (SingKind p, Integral (DemoteRep p))
-type IntegralN (n :: k) = IntegralK ('KProxy :: KProxy k)
-
 type Usable a = (Element a, Num a, Numeric a, Num (Vector a), Container Vector a)
-
-natVal' :: (Num a, IntegralN n) => Sing n -> a
-natVal' = fromIntegral . fromSing
 
 -- TODO: make this a data family?
 data HTensor (dims :: [k]) a where
@@ -80,11 +75,8 @@ instance Tensor HTensor where
 
   select i (Vector v) = Scalar (v V.! i)
 
-oneHot :: forall a n. (SingI n, IntegralN n, Usable a) => Int -> HTensor '[n] a
-oneHot m = Vector $ (konst 0 (natVal' (sing::Sing n))) // [(m, 1)]
-
-gradSelect :: forall a n. (SingI n, IntegralN n, Usable a) => Int -> HTensor '[n] a -> a -> HTensor '[n] a
-gradSelect i _ a = Vector $ (konst 0 (natVal' (sing::Sing n))) // [(i, a)]
+  oneHot :: forall a n. (SingI n, IntegralN n, Numeric a) => Int -> HTensor '[n] a
+  oneHot i = Vector $ (konst 0 (natVal' (sing::Sing n))) // [(i, 1)]
 
 -- pretty much all of these instances should be automatically derivable
 -- the only issue is that fromInteger needs to use natVal'
@@ -201,9 +193,6 @@ gradMV m v g = (mm (asCol g) (asRow' v), mv (transpose m) g)
 
 gradMM :: Numeric a => HTensor '[n, m] a -> HTensor '[m, k] a -> HTensor '[n, k] a -> (HTensor '[n, m] a, HTensor '[m, k] a)
 gradMM a b g = (mm g (transpose b), mm (transpose a) g)
-
-oneHot :: forall a n. (SingI n, IntegralN n, Usable a) => Int -> HTensor '[n] a
-oneHot m = Vector $ (konst 0 (natVal' (sing::Sing n))) // [(m, 1)]
 
 gradSelect :: forall a n. (SingI n, IntegralN n, Usable a) => Int -> HTensor '[n] a -> a -> HTensor '[n] a
 gradSelect i _ a = Vector $ (konst 0 (natVal' (sing::Sing n))) // [(i, a)]

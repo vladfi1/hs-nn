@@ -51,8 +51,8 @@ makeSource a = do
     , gradOutput = gradOutput
     }
 
-instance (Num a, Default a) => DefaultM IO (Node a) where
-    defM = makeSource def
+instance (Num a) => DefaultM IO (Node a) where
+    defM = makeSource 0
 
 makeNode :: (Num output) => Curry Node inputs (IO (Node output)) c => GradFunc inputs output -> c
 makeNode GradFunc{..} = VarArgs.curry f where

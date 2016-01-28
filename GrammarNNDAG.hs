@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 
 module GrammarNNDAG where
 
@@ -55,20 +56,30 @@ instance SingI (FromInteger (Length (Code t)) :: k) => KnownCode (s :: k -> *) t
 class HasNodes t where
   getNodes :: t -> [Some Node]
 
-newtype Repr tensor dim = Repr { runRepr :: Node (tensor '[dim]) }
---  deriving (DefaultM)
+newtype Repr tensor n = Repr { runRepr :: Node (tensor '[n]) }
 
-instance HasNodes (Repr a dim) where
+--instance (Num (tensor '[n])) => DefaultM IO (Repr tensor n) where
+--  defM = Repr <$> defM
+
+instance (Tensor tensor, IntegralN n) => DefaultM IO (Repr tensor n) where
+  defM = case tensorFloat of (C.Dict :: C.Dict (Floating (tensor '[n]))) -> Repr <$> defM
+
+instance HasNodes (Repr tensor n) where
   getNodes (Repr node) = [Some node]
 
 newtype ReprT tensor s t = ReprT { runReprT :: Node (tensor '[Size s t]) }
+
+instance (Tensor tensor, IntegralS s, KnownSize s t) => DefaultM IO (ReprT tensor s t) where
+  defM = case tensorFloat of (C.Dict :: C.Dict (Floating (tensor '[Size s t]))) -> ReprT <$> defM
 
 instance HasNodes (ReprT a s t) where
   getNodes (ReprT node) = [Some node]
 
 --newtype Linear a outDim inDim = Linear (Node (tensor '[outDim, inDim] a))
 newtype LinearT tensor s tOut tIn = LinearT (Node (tensor '[Size s tOut, Size s tIn]))
---  deriving (DefaultM)
+
+instance (Tensor tensor, IntegralL '[Size s tOut, Size s tIn]) => DefaultM IO (LinearT tensor s tOut tIn) where
+  defM = case tensorFloat of (C.Dict :: C.Dict (Floating (tensor '[Size s tOut, Size s tIn]))) -> LinearT <$> defM
 
 instance HasNodes (LinearT tensor s tOut tIn) where
   getNodes (LinearT node) = [Some node]
@@ -84,8 +95,8 @@ data EncodeParams' tensor s parent children = EncodeParams' (ReprT tensor s pare
 instance HasNodes (EncodeParams' tensor s parent children) where
   getNodes (EncodeParams' bias weights) = getNodes bias ++ concat (collapse_NP $ liftA_NP' (K . getNodes) weights)
 
---instance (Default a, Usable a, IntegralS s, KnownSize s parent, SListI children, All (KnownSize s) children) => DefaultM IO (EncodeParams' a s parent children) where
---  defM = EncodeParams' <$> defM <*> sequence'_NP (cpure_NP (Proxy::Proxy (KnownSize s)) (Comp defM))
+instance (Tensor tensor, IntegralS s, KnownSize s parent, SListI children, All (KnownSize s) children) => DefaultM IO (EncodeParams' tensor s parent children) where
+  defM = EncodeParams' <$> defM <*> sequence'_NP (cpure_NP (Proxy::Proxy (KnownSize s)) (Comp defM))
 
 encodeParent' :: forall tensor s parent children. (Tensor tensor, IntegralS s, KnownSize s parent) =>
   EncodeParams' tensor s parent children -> NP (ReprT tensor s) children -> IO (ReprT tensor s parent)
@@ -113,8 +124,8 @@ getRepr :: Encoding tensor s t -> ReprT tensor s t
 getRepr (Primitive repr) = repr
 getRepr (Generic repr _) = repr
 
---instance (Tensor tensor, IntegralS s, KnownSize s t, KnownSizes s t) => DefaultM IO (EncodeParams a s t) where
---  defM = EncodeParams <$> sequence'_NP (cpure_NP (Proxy::Proxy (All (KnownSize s))) (Comp defM))
+instance (Tensor tensor, IntegralS s, KnownSize s t, KnownSizes s t) => DefaultM IO (EncodeParams tensor s t) where
+  defM = EncodeParams <$> sequence'_NP (cpure_NP (Proxy::Proxy (All (KnownSize s))) (Comp defM))
 
 newtype Encoder tensor s t = Encoder { runEncoder :: t -> IO (Encoding tensor s t) }
 
@@ -146,8 +157,8 @@ newtype LinearIn tensor s t t' = LinearIn (Node (tensor '[Size s t', Size s t]))
 instance HasNodes (LinearIn tensor s t t') where
   getNodes (LinearIn node) = [Some node]
 
---instance (Tensor tensor, IntegralS s, KnownSize s t, KnownSize s t') => DefaultM IO (LinearIn tensor s t t') where
---  defM = LinearIn <$> defM
+instance (Tensor tensor, IntegralS s, KnownSize s t, KnownSize s t') => DefaultM IO (LinearIn tensor s t t') where
+  defM = case tensorFloat of (C.Dict :: C.Dict (Floating (tensor '[Size s t', Size s t]))) -> LinearIn <$> defM
 
 linearIn :: (IntegralS s, KnownSize s t', Tensor tensor) => LinearIn tensor s t t' -> ReprT tensor s t -> IO (ReprT tensor s t')
 linearIn (LinearIn m) (ReprT v) = ReprT <$> makeMV m v
@@ -157,8 +168,8 @@ data AffineIn tensor s t t' = AffineIn (ReprT tensor s t') (LinearIn tensor s t 
 instance HasNodes (AffineIn tensor s t t') where
   getNodes (AffineIn bias linear) = getNodes bias ++ getNodes linear
 
---instance (Tensor tensor, IntegralS s, KnownSize s t, KnownSize s t') => DefaultM IO (AffineIn tensor s t t') where
---  defM = AffineIn <$> defM <*> defM
+instance (Tensor tensor, IntegralS s, KnownSize s t, KnownSize s t') => DefaultM IO (AffineIn tensor s t t') where
+  defM = AffineIn <$> defM <*> defM
 
 affineIn :: (Tensor tensor, IntegralS s, KnownSize s t') => AffineIn tensor s t t' -> ReprT tensor s t -> IO (ReprT tensor s t')
 affineIn (AffineIn (ReprT bias) weights) input = do
@@ -173,8 +184,10 @@ data Affine' tensor outDim inDim =
 instance HasNodes (Affine' tensor outDim inDim) where
   getNodes (Affine' bias linear) = [Some bias, Some linear]
 
---instance (Default a, Usable a, IntegralN outDim, SingI outDim, SingI inDim) => DefaultM IO (Affine' a outDim inDim) where
---  defM = Affine' <$> defM <*> defM
+instance (Tensor tensor, IntegralL '[outDim, inDim]) => DefaultM IO (Affine' tensor outDim inDim) where
+  defM = case tensorFloat of
+    (C.Dict :: C.Dict (Floating (tensor '[outDim, inDim]))) -> case tensorFloat of
+      (C.Dict :: C.Dict (Floating (tensor '[outDim]))) -> Affine' <$> defM <*> defM
 
 sigmoid x = 1 / (1 + exp (-x))
 
@@ -190,8 +203,8 @@ data DecodeParams tensor s t =
 instance HasNodes (DecodeParams tensor s t) where
   getNodes (DecodeParams aff params) = getNodes aff ++ concat (collapse_POP' $ liftA_POP' (K . getNodes) params)
 
---instance (Tensor tensor, KnownCode s t, KnownSize s t, KnownSizes s t) => DefaultM IO (DecodeParams tensor s t) where
---  defM = DecodeParams <$> defM <*> sequence'_POP (cpure_POP (Proxy::Proxy (KnownSize s)) (Comp defM))
+instance (Tensor tensor, KnownCode s t, KnownSize s t, KnownSizes s t) => DefaultM IO (DecodeParams tensor s t) where
+  defM = DecodeParams <$> defM <*> sequence'_POP (cpure_POP (Proxy::Proxy (KnownSize s)) (Comp defM))
 
 decodeParent :: forall tensor s t. (Tensor tensor, All2 (KnownSize s) (Code t), KnownCode s t) =>
   DecodeParams tensor s t -> ReprT tensor s t -> IO (SOP (ReprT tensor s) (Code t))
@@ -199,7 +212,7 @@ decodeParent (DecodeParams aff params) parent = do
   Repr node <- affine' aff (Repr $ runReprT parent)
   --Vector v <- evalNode node
   --let weights = map toRational $ Vector.toList v
-  let weights = undefined
+  let weights = undefined -- FIXME: reimplement!
   
   let children = np2ns . unPOP $ cliftA_POP (Proxy::Proxy (KnownSize s)) (Comp . flip affineIn parent) params
   
@@ -261,11 +274,9 @@ autoDecodeRec autoDecoders Dict (DecodeParams aff params) = AutoDecoder f where
     
     foldM (makeBinary (+)) log_score (norms ++ childNodes)
 
-{-
-primAutoDecoder :: Num a => AutoDecoder a s t
+primAutoDecoder :: forall tensor s t. (Tensor tensor, IntegralS s, KnownSize s t) => AutoDecoder tensor s t
 primAutoDecoder = AutoDecoder f where
-  f (Primitive _) = makeSource 0
--}
+  f (Primitive _) = case tensorFloat of (C.Dict :: C.Dict (Floating (tensor '[]))) -> makeSource 0
 
 makeAutoDecoders :: forall proxy p g tensor s. (Tensor tensor, All (And (KnownSizes s) (KnownCode s)) g) =>
   Complete p g -> NP (DecodeParams tensor s) g -> Rec (AutoDecoder tensor s) p -> Rec (AutoDecoder tensor s) (p :++ g)

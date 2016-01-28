@@ -9,6 +9,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module TensorHMatrix where
 
@@ -16,15 +17,15 @@ import Nats
 import Numeric.LinearAlgebra as H
 import Data.Vector.Storable as V
 import Data.Default
-import Data.Singletons.Prelude hiding (And)
-import Generics.SOP.Constraint (And)
-import Data.Vinyl
-
+import Data.Singletons.Prelude
+import Generics.SOP.Constraint as C
+import Constraints
 import GenericTensor
 
 import Prelude hiding (zipWith)
 
-type Usable a = (Element a, Num a, Numeric a, Num (Vector a), Container Vector a)
+-- the kitchen sink of constraints
+type Usable a = (Element a, Num a, Numeric a, Num (Vector a), Container Vector a, Floating a, Floating (Vector a))
 
 -- TODO: make this a data family?
 data HTensor a (dims :: [k]) where
@@ -34,17 +35,15 @@ data HTensor a (dims :: [k]) where
 
 deriving instance (Show a, Element a) => Show (HTensor a dims)
 
-instance (Default a) => Default (HTensor a '[]) where
-  def = Scalar def
+fill :: forall a dims. (IntegralL dims, Num a, Container Vector a) => a -> HTensor a dims
+fill a = case (sing :: Sing dims) of
+  SNil -> Scalar a
+  SCons n SNil -> Vector $ konst a (natVal' n)
+  SCons m (SCons n SNil) -> Matrix $ konst a (natVal' m, natVal' n)
+  _ -> error "HTensors only go up to dimension 2."
 
-fill1 :: forall a n. (SingI n, IntegralN n, Usable a) => a -> HTensor a '[n]
-fill1 a = Vector $ konst a (natVal' (sing::Sing n))
-
-instance (SingI n, IntegralN n, Default a, Usable a) => Default (HTensor a '[n]) where
-  def = fill1 def
-
-instance (SingI n, IntegralN n, SingI m, Default a, Usable a) => Default (HTensor a '[n, m]) where
-  def = Matrix $ konst def (natVal' (sing::Sing n), natVal' (sing::Sing m))
+instance (IntegralL dims, Default a, Num a, Container Vector a) => Default (HTensor a dims) where
+  def = fill def
 
 --type instance IndexOf (HTensor l) = Rec LT l
 --type instance IndexOf (HTensor l) = Rec (Const Int) l
@@ -56,7 +55,7 @@ instance Indexable (HTensor (n ': l) a) (HTensor l a) where
   Vector v ! i = Scalar (v ! i)
 -}
 
-instance Numeric a => Tensor (HTensor a :: [k] -> *) where
+instance Usable a => Tensor (HTensor a :: [k] -> *) where
   type N (HTensor a) = a
 
   transpose (Matrix m) = Matrix (tr' m)
@@ -79,82 +78,104 @@ instance Numeric a => Tensor (HTensor a :: [k] -> *) where
 -- pretty much all of these instances should be automatically derivable
 -- the only issue is that fromInteger needs to use natVal'
 
-instance Num a => Num (HTensor a '[]) where
+instance (Usable a, IntegralL dims) => Num (HTensor a dims) where
   Scalar a + Scalar b = Scalar (a + b)
-  Scalar a - Scalar b = Scalar (a - b)
-  Scalar a * Scalar b = Scalar (a * b)
-  negate (Scalar a) = Scalar (negate a)
-  abs (Scalar a) = Scalar (abs a)
-  signum (Scalar a) = Scalar (signum a)
-  fromInteger n = Scalar (fromInteger n)
-
-instance (SingI n, IntegralN n, Numeric a, Num (Vector a)) => Num (HTensor a '[n]) where
   Vector a + Vector b = Vector (a + b)
-  Vector a - Vector b = Vector (a - b)
-  Vector a * Vector b = Vector (a * b)
-  negate (Vector a) = Vector (negate a)
-  abs (Vector a) = Vector (abs a)
-  signum (Vector a) = Vector (signum a)
-  fromInteger n = Vector $ konst (fromInteger n) (natVal' (sing::Sing n))
-
-instance (SingI n, IntegralN n, SingI m, Usable a) => Num (HTensor a '[n, m]) where
   Matrix a + Matrix b = Matrix (a + b)
+
+  Scalar a - Scalar b = Scalar (a - b)
+  Vector a - Vector b = Vector (a - b)
   Matrix a - Matrix b = Matrix (a - b)
+
+  Scalar a * Scalar b = Scalar (a * b)
+  Vector a * Vector b = Vector (a * b)
   Matrix a * Matrix b = Matrix (a * b)
+  
+  negate (Scalar a) = Scalar (negate a)
+  negate (Vector a) = Vector (negate a)
   negate (Matrix a) = Matrix (negate a)
+
+  abs (Scalar a) = Scalar (abs a)
+  abs (Vector a) = Vector (abs a)
   abs (Matrix a) = Matrix (abs a)
+  
+  signum (Vector a) = Vector (signum a)
+  signum (Scalar a) = Scalar (signum a)
   signum (Matrix a) = Matrix (signum a)
-  fromInteger n = Matrix $ konst (fromInteger n) (natVal' (sing::Sing n), natVal' (sing::Sing m))
+  
+  
+  fromInteger = fill . fromInteger
 
-instance Fractional a => Fractional (HTensor a '[]) where
+instance (IntegralL dims, Usable a) => Fractional (HTensor a dims) where
   Scalar a / Scalar b = Scalar (a / b)
-  recip (Scalar a) = Scalar (recip a)
-  fromRational r = Scalar (fromRational r)
-
-instance (SingI n, IntegralN n, Numeric a, Fractional a, Fractional (Vector a)) => Fractional (HTensor a '[n]) where
   Vector a / Vector b = Vector (a / b)
+  Matrix a / Matrix b = Matrix (a / b)
+  
+  recip (Scalar a) = Scalar (recip a)
   recip (Vector a) = Vector (recip a)
-  fromRational r = Vector $ konst (fromRational r) (natVal' (sing::Sing n))
+  recip (Matrix a) = Matrix (recip a)
 
-instance Floating a => Floating (HTensor a '[]) where
-  pi = Scalar pi
+  fromRational = fill . fromRational
+
+instance (IntegralL dims, Usable a) => Floating (HTensor a dims) where
+  pi = fill pi
+
   exp (Scalar a) = Scalar (exp a)
-  log (Scalar a) = Scalar (log a)
-  sqrt (Scalar a) = Scalar (sqrt a)
-  Scalar a ** Scalar b = Scalar (a ** b)
-  logBase (Scalar a) (Scalar b) = Scalar (logBase a b)
-  sin (Scalar a) = Scalar (sin a)
-  cos (Scalar a) = Scalar (cos a)
-  tan (Scalar a) = Scalar (tan a)
-  asin (Scalar a) = Scalar (asin a)
-  acos (Scalar a) = Scalar (acos a)
-  atan (Scalar a) = Scalar (atan a)
-  sinh (Scalar a) = Scalar (sinh a)
-  cosh (Scalar a) = Scalar (cosh a)
-  tanh (Scalar a) = Scalar (tanh a)
-  asinh (Scalar a) = Scalar (asinh a)
-  acosh (Scalar a) = Scalar (acosh a)
-  atanh (Scalar a) = Scalar (atanh a)
-
-instance (SingI n, IntegralN n, Usable a, Floating a, Floating (Vector a)) => Floating (HTensor a '[n]) where
-  pi = fill1 pi
   exp (Vector a) = Vector (exp a)
+  
+  log (Scalar a) = Scalar (log a)
   log (Vector a) = Vector (log a)
+
+  sqrt (Scalar a) = Scalar (sqrt a)
   sqrt (Vector a) = Vector (sqrt a)
+
+  Scalar a ** Scalar b = Scalar (a ** b)
   Vector a ** Vector b = Vector (a ** b)
+
+  logBase (Scalar a) (Scalar b) = Scalar (logBase a b)
   logBase (Vector a) (Vector b) = Vector (logBase a b)
+
+  sin (Scalar a) = Scalar (sin a)
   sin (Vector a) = Vector (sin a)
+
+  cos (Scalar a) = Scalar (cos a)
   cos (Vector a) = Vector (cos a)
+
+  tan (Scalar a) = Scalar (tan a)
   tan (Vector a) = Vector (tan a)
+
+  asin (Scalar a) = Scalar (asin a)
   asin (Vector a) = Vector (asin a)
+
+  acos (Scalar a) = Scalar (acos a)
   acos (Vector a) = Vector (acos a)
+
+  atan (Scalar a) = Scalar (atan a)
   atan (Vector a) = Vector (atan a)
+
+  sinh (Scalar a) = Scalar (sinh a)
   sinh (Vector a) = Vector (sinh a)
+
+  cosh (Scalar a) = Scalar (cosh a)
   cosh (Vector a) = Vector (cosh a)
+
+  tanh (Scalar a) = Scalar (tanh a)
   tanh (Vector a) = Vector (tanh a)
+
+  asinh (Scalar a) = Scalar (asinh a)
   asinh (Vector a) = Vector (asinh a)
+
+  acosh (Scalar a) = Scalar (acosh a)
   acosh (Vector a) = Vector (acosh a)
+
+  atanh (Scalar a) = Scalar (atanh a)
   atanh (Vector a) = Vector (atanh a)
+
+instance Usable a => ImpliesC (IntegralL dims) (CompC Floating (HTensor a) dims) where
+  impliesC = Sub Dict
+
+instance Usable a => ForallC (ImpliesC1 IntegralL (CompC Floating (HTensor a))) where
+  forallC = Forall Dict
 
 tmap :: (Container Vector a, Num a, Element b) => (a -> b) -> HTensor a dims -> HTensor b dims
 tmap f (Scalar a) = Scalar $ f a

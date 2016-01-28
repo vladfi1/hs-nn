@@ -19,8 +19,9 @@ import GHC.Exts (Constraint)
 import Gradients
 import VarArgs
 import Constraints
+import Generics.SOP.Constraint as C
 
-import Data.Singletons.Prelude
+import Data.Singletons.Prelude 
 
 -- FIXME: find better place for these
 type IntegralK (p :: KProxy k) = (SingKind p, Integral (DemoteRep p))
@@ -28,15 +29,15 @@ type IntegralK (p :: KProxy k) = (SingKind p, Integral (DemoteRep p))
 class (IntegralK ('KProxy :: KProxy k), SingI n) => IntegralN (n :: k)
 instance (IntegralK ('KProxy :: KProxy k), SingI n) => IntegralN (n :: k)
 
-class (IntegralK ('KProxy :: KProxy k), SingI l) => IntegralL (l :: [k])
-instance (IntegralK ('KProxy :: KProxy k), SingI l) => IntegralL (l :: [k])
+class (IntegralK ('KProxy :: KProxy k), SingI l, C.All SingI l) => IntegralL (l :: [k])
+instance (IntegralK ('KProxy :: KProxy k), SingI l, C.All SingI l) => IntegralL (l :: [k])
 
 natVal' :: (Num a, IntegralN n) => Sing n -> a
 natVal' = fromIntegral . fromSing
 
 -- FIXME: these functions are not very general :(
 -- TODO: impose singleton constraints on dimensions? or let the constructors handle this?
-class ForallC (Implies1 IntegralL (CompC Floating t)) => Tensor (t :: [k] -> *) where
+class ForallC (ImpliesC1 IntegralL (CompC Floating t)) => Tensor (t :: [k] -> *) where
   type N t :: *
   
   --fill :: (IntegralL dims, Sing dims) => 

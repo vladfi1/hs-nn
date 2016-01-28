@@ -76,7 +76,7 @@ instance HasNodes (LinearT tensor s tOut tIn) where
 --linear :: Numeric a => Linear a outDim inDim -> Repr a inDim -> IO (Node (tensor a '[outDim]))
 --linear (Linear m) (Repr v) = makeNode mvFun m v
 
-linearT :: (Tensor tensor, SingI (Size s tOut), IntegralS s) => LinearT tensor s tOut tIn -> ReprT tensor s tIn -> IO (ReprT tensor s tOut)
+linearT :: (Tensor tensor, IntegralS s, SingI (Size s tOut)) => LinearT tensor s tOut tIn -> ReprT tensor s tIn -> IO (ReprT tensor s tOut)
 linearT (LinearT m) (ReprT v) = ReprT <$> makeMV m v
 
 data EncodeParams' tensor s parent children = EncodeParams' (ReprT tensor s parent) (NP (LinearT tensor s parent) children)

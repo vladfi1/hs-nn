@@ -15,6 +15,8 @@ module Constraints
   , FlipC
   , CompC
   , ForallC1
+  , Implies
+  , Implies1 (..)
   , module Data.Constraint
   ) where
 
@@ -67,6 +69,17 @@ instance c (f a) :=> CompC c f a where
   ins = Sub Dict
 
 type ForallC1 c f = ForallC (CompC c f)
+
+type Implies = (:=>)
+
+class (c1 a :=> c2 a) => Implies1 c1 c2 a
+instance (c1 a :=> c2 a) => Implies1 c1 c2 a
+
+instance Class (c1 a :=> c2 a) (Implies1 c1 c2 a) where
+  cls = Sub Dict
+
+instance (c1 a :=> c2 a) :=> Implies1 c1 c2 a where
+  ins = Sub Dict
 
 {-
 data CList c xs where

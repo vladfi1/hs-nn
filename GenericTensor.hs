@@ -7,7 +7,9 @@
   PolyKinds,
   FlexibleContexts,
   RankNTypes,
-  ScopedTypeVariables
+  ScopedTypeVariables,
+  FlexibleInstances,
+  UndecidableInstances
   #-}
 
 -- minimal common interface between HMatrixndccelerate
@@ -22,15 +24,19 @@ import Data.Singletons.Prelude
 
 -- FIXME: find better place for these
 type IntegralK (p :: KProxy k) = (SingKind p, Integral (DemoteRep p))
-type IntegralN (n :: k) = (IntegralK ('KProxy :: KProxy k), SingI n)
-type IntegralL (l :: [k]) = (IntegralK ('KProxy :: KProxy k), SingI l)
+
+class (IntegralK ('KProxy :: KProxy k), SingI n) => IntegralN (n :: k)
+instance (IntegralK ('KProxy :: KProxy k), SingI n) => IntegralN (n :: k)
+
+class (IntegralK ('KProxy :: KProxy k), SingI l) => IntegralL (l :: [k])
+instance (IntegralK ('KProxy :: KProxy k), SingI l) => IntegralL (l :: [k])
 
 natVal' :: (Num a, IntegralN n) => Sing n -> a
 natVal' = fromIntegral . fromSing
 
 -- FIXME: these functions are not very general :(
 -- TODO: impose singleton constraints on dimensions? or let the constructors handle this?
-class ForallC1 Floating t => Tensor (t :: [k] -> *) where
+class ForallC (Implies1 IntegralL (CompC Floating t)) => Tensor (t :: [k] -> *) where
   type N t :: *
   
   --fill :: (IntegralL dims, Sing dims) => 

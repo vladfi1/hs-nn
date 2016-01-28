@@ -27,23 +27,23 @@ import Prelude hiding (zipWith)
 type Usable a = (Element a, Num a, Numeric a, Num (Vector a), Container Vector a)
 
 -- TODO: make this a data family?
-data HTensor (dims :: [k]) a where
-  Scalar :: a -> HTensor '[] a
-  Vector :: Vector a -> HTensor '[n] a
-  Matrix :: Matrix a -> HTensor '[n, m] a
+data HTensor a (dims :: [k]) where
+  Scalar :: !a -> HTensor a '[]
+  Vector :: Vector a -> HTensor a '[n]
+  Matrix :: Matrix a -> HTensor a '[n, m]
 
-deriving instance (Show a, Element a) => Show (HTensor dims a)
+deriving instance (Show a, Element a) => Show (HTensor a dims)
 
-instance (Default a) => Default (HTensor '[] a) where
+instance (Default a) => Default (HTensor a '[]) where
   def = Scalar def
 
-fill1 :: forall a n. (SingI n, IntegralN n, Usable a) => a -> HTensor '[n] a
+fill1 :: forall a n. (SingI n, IntegralN n, Usable a) => a -> HTensor a '[n]
 fill1 a = Vector $ konst a (natVal' (sing::Sing n))
 
-instance (SingI n, IntegralN n, Default a, Usable a) => Default (HTensor '[n] a) where
+instance (SingI n, IntegralN n, Default a, Usable a) => Default (HTensor a '[n]) where
   def = fill1 def
 
-instance (SingI n, IntegralN n, SingI m, Default a, Usable a) => Default (HTensor '[n, m] a) where
+instance (SingI n, IntegralN n, SingI m, Default a, Usable a) => Default (HTensor a '[n, m]) where
   def = Matrix $ konst def (natVal' (sing::Sing n), natVal' (sing::Sing m))
 
 --type instance IndexOf (HTensor l) = Rec LT l
@@ -56,10 +56,8 @@ instance Indexable (HTensor (n ': l) a) (HTensor l a) where
   Vector v ! i = Scalar (v ! i)
 -}
 
-instance Tensor HTensor where
-  --type C HTensor = And Element (Container Vector)
-  
-  type N HTensor = Numeric
+instance Numeric a => Tensor (HTensor a :: [k] -> *) where
+  type N (HTensor a) = a
 
   transpose (Matrix m) = Matrix (tr' m)
   
@@ -75,13 +73,13 @@ instance Tensor HTensor where
 
   select i (Vector v) = Scalar (v V.! i)
 
-  oneHot :: forall a n. (SingI n, IntegralN n, Numeric a) => Int -> HTensor '[n] a
+  oneHot :: forall (n :: k). (SingI n, IntegralN n) => Int -> HTensor a '[n]
   oneHot i = Vector $ (konst 0 (natVal' (sing::Sing n))) // [(i, 1)]
 
 -- pretty much all of these instances should be automatically derivable
 -- the only issue is that fromInteger needs to use natVal'
 
-instance Num a => Num (HTensor '[] a) where
+instance Num a => Num (HTensor a '[]) where
   Scalar a + Scalar b = Scalar (a + b)
   Scalar a - Scalar b = Scalar (a - b)
   Scalar a * Scalar b = Scalar (a * b)
@@ -90,7 +88,7 @@ instance Num a => Num (HTensor '[] a) where
   signum (Scalar a) = Scalar (signum a)
   fromInteger n = Scalar (fromInteger n)
 
-instance (SingI n, IntegralN n, Numeric a, Num (Vector a)) => Num (HTensor '[n] a) where
+instance (SingI n, IntegralN n, Numeric a, Num (Vector a)) => Num (HTensor a '[n]) where
   Vector a + Vector b = Vector (a + b)
   Vector a - Vector b = Vector (a - b)
   Vector a * Vector b = Vector (a * b)
@@ -99,7 +97,7 @@ instance (SingI n, IntegralN n, Numeric a, Num (Vector a)) => Num (HTensor '[n] 
   signum (Vector a) = Vector (signum a)
   fromInteger n = Vector $ konst (fromInteger n) (natVal' (sing::Sing n))
 
-instance (SingI n, IntegralN n, SingI m, Usable a) => Num (HTensor '[n, m] a) where
+instance (SingI n, IntegralN n, SingI m, Usable a) => Num (HTensor a '[n, m]) where
   Matrix a + Matrix b = Matrix (a + b)
   Matrix a - Matrix b = Matrix (a - b)
   Matrix a * Matrix b = Matrix (a * b)
@@ -108,17 +106,17 @@ instance (SingI n, IntegralN n, SingI m, Usable a) => Num (HTensor '[n, m] a) wh
   signum (Matrix a) = Matrix (signum a)
   fromInteger n = Matrix $ konst (fromInteger n) (natVal' (sing::Sing n), natVal' (sing::Sing m))
 
-instance Fractional a => Fractional (HTensor '[] a) where
+instance Fractional a => Fractional (HTensor a '[]) where
   Scalar a / Scalar b = Scalar (a / b)
   recip (Scalar a) = Scalar (recip a)
   fromRational r = Scalar (fromRational r)
 
-instance (SingI n, IntegralN n, Numeric a, Fractional a, Fractional (Vector a)) => Fractional (HTensor '[n] a) where
+instance (SingI n, IntegralN n, Numeric a, Fractional a, Fractional (Vector a)) => Fractional (HTensor a '[n]) where
   Vector a / Vector b = Vector (a / b)
   recip (Vector a) = Vector (recip a)
   fromRational r = Vector $ konst (fromRational r) (natVal' (sing::Sing n))
 
-instance Floating a => Floating (HTensor '[] a) where
+instance Floating a => Floating (HTensor a '[]) where
   pi = Scalar pi
   exp (Scalar a) = Scalar (exp a)
   log (Scalar a) = Scalar (log a)
@@ -138,7 +136,7 @@ instance Floating a => Floating (HTensor '[] a) where
   acosh (Scalar a) = Scalar (acosh a)
   atanh (Scalar a) = Scalar (atanh a)
 
-instance (SingI n, IntegralN n, Usable a, Floating a, Floating (Vector a)) => Floating (HTensor '[n] a) where
+instance (SingI n, IntegralN n, Usable a, Floating a, Floating (Vector a)) => Floating (HTensor a '[n]) where
   pi = fill1 pi
   exp (Vector a) = Vector (exp a)
   log (Vector a) = Vector (log a)
@@ -158,12 +156,12 @@ instance (SingI n, IntegralN n, Usable a, Floating a, Floating (Vector a)) => Fl
   acosh (Vector a) = Vector (acosh a)
   atanh (Vector a) = Vector (atanh a)
 
-tmap :: (Container Vector a, Num a, Element b) => (a -> b) -> HTensor dims a -> HTensor dims b
+tmap :: (Container Vector a, Num a, Element b) => (a -> b) -> HTensor a dims -> HTensor b dims
 tmap f (Scalar a) = Scalar $ f a
 tmap f (Vector v) = Vector $ cmap f v
 tmap f (Matrix m) = Matrix $ cmap f m
 
-tZipWith :: (Storable a, Storable b, Storable c) => (a -> b -> c) -> HTensor '[n] a -> HTensor '[n] b -> HTensor '[n] c
+tZipWith :: (Storable a, Storable b, Storable c) => (a -> b -> c) -> HTensor a '[n] -> HTensor b '[n] -> HTensor c '[n]
 tZipWith f (Vector a) (Vector b) = Vector (zipWith f a b)
 
 {-

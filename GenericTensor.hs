@@ -10,16 +10,17 @@
   ScopedTypeVariables
   #-}
 
--- minimal common interface between HMatrix and Accelerate
+-- minimal common interface between HMatrixndccelerate
 module GenericTensor where
 
 import GHC.Exts (Constraint)
 import Gradients
 import VarArgs
+import Constraints
 
 import Data.Singletons.Prelude
 
--- FIXME: find a better place for these
+-- FIXME: find better place for these
 type IntegralK (p :: KProxy k) = (SingKind p, Integral (DemoteRep p))
 type IntegralN (n :: k) = IntegralK ('KProxy :: KProxy k)
 type IntegralL (l :: [k]) = IntegralK ('KProxy :: KProxy k)
@@ -28,43 +29,41 @@ natVal' :: (Num a, IntegralN n) => Sing n -> a
 natVal' = fromIntegral . fromSing
 
 -- FIXME: these functions are not very general :(
--- TODO: subsume numeric type parameter, and expose as an associated type?
 -- TODO: impose singleton constraints on dimensions? or let the constructors handle this?
-class Tensor (t :: [k] -> * -> *) where
-  -- numeric constraint
-  type N t :: * -> Constraint
+class ForallC1 Num t => Tensor (t :: [k] -> *) where
+  type N t :: *
   
   --fill :: (IntegralL dims, Sing dims) => 
   
-  asCol :: N t a => t '[n] a -> t '[n, FromInteger 1] a
-  asRow :: N t a => t '[n] a -> t '[FromInteger 1, n] a
+  asCol :: t '[n] -> t '[n, FromInteger 1]
+  asRow :: t '[n] -> t '[FromInteger 1, n]
   
-  transpose :: N t a => t '[n, m] a -> t '[m, n] a
+  transpose :: t '[n, m] -> t '[m, n]
   
-  scale :: (N t a) => t '[] a -> t dims a -> t dims a
+  scale :: t '[] -> t dims -> t dims
   
-  dot :: (N t a) => t '[n] a -> t '[n] a -> t '[] a
+  dot :: t '[n] -> t '[n] -> t '[]
   
-  outer :: (N t a) => t '[n] a -> t '[m] a -> t '[n, m] a
+  outer :: t '[n] -> t '[m] -> t '[n, m]
   outer a b = mm (asCol a) (asRow b)
   
-  mv :: (N t a) => t '[n, m] a -> t '[m] a -> t '[n] a
-  mm :: (N t a) => t '[n, m] a -> t '[m, p] a -> t '[n, p] a
+  mv :: t '[n, m] -> t '[m] -> t '[n]
+  mm :: t '[n, m] -> t '[m, p] -> t '[n, p]
   
-  --select :: N t a => Int -> t (n ': dims) a -> t dims a
-  select :: N t a => Int -> t '[n] a -> t '[] a
+  --select :: N t => Int -> t (n ': dims) -> t dims
+  select :: Int -> t '[n] -> t '[]
   
-  oneHot :: (N t a, SingI n, IntegralN n) => Int -> t '[n] a
+  oneHot :: (SingI n, IntegralN n) => Int -> t '[n]
 
-gradDot :: (Tensor t, N t a) => GradFunc '[t '[n] a, t '[n] a] (t '[] a)
+gradDot :: (Tensor t) => GradFunc '[t '[n], t '[n]] (t '[])
 gradDot = GradFunc (uncurry2 dot) (makeGrad2 $ \a b g -> (scale g b, scale g a))
 
-gradMV :: (Tensor t, N t a) => GradFunc '[t '[n, m] a, t '[m] a] (t '[n] a)
+gradMV :: (Tensor t) => GradFunc '[t '[n, m], t '[m]] (t '[n])
 gradMV = GradFunc (uncurry2 mv) (makeGrad2 $ \m v g -> (outer g v, mv (transpose m) g))
 
-gradMM :: (Tensor t, N t a) => GradFunc '[t '[n, m] a, t '[m, k] a] (t '[n, k] a)
+gradMM :: (Tensor t) => GradFunc '[t '[n, m], t '[m, k]] (t '[n, k])
 gradMM = GradFunc (uncurry2 mm) (makeGrad2 $ \a b g -> (mm g (transpose b), mm (transpose a) g))
 
-gradSelect :: forall t n a. (SingI n, IntegralN n, Tensor t, N t a) => Int -> GradFunc '[t '[n] a] (t '[] a)
-gradSelect i = GradFunc (uncurry1 $ select i) (makeGrad1 $ \_ a -> scale a (oneHot i :: t '[n] a))
+gradSelect :: forall t n. (SingI n, IntegralN n, Tensor t) => Int -> GradFunc '[t '[n]] (t '[])
+gradSelect i = GradFunc (uncurry1 $ select i) (makeGrad1 $ \_ g -> scale g (oneHot i :: t '[n]))
 

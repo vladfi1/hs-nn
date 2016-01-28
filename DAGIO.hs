@@ -27,8 +27,6 @@ import DefaultM
 data Some f where
   Some :: f a -> Some f
 
-deriving instance Num a => Num (Identity a)
-
 data Node (output :: *) where
   Node :: (Num output) =>
     { forward :: HList inputs -> Identity output

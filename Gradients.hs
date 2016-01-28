@@ -20,11 +20,11 @@ data GradFunc inputs output =
     }
 
 -- these types are somewhat less general than would be ideal
-makeUnary :: (Floating a) => (forall b. Floating b => b -> b) -> GradFunc '[a] a
-makeUnary f = GradFunc (uncurry1 f) (\inputs output -> (output * uncurry1 (diff f) inputs) :& RNil)
+unaryGrad :: (Floating a) => (forall b. Floating b => b -> b) -> GradFunc '[a] a
+unaryGrad f = GradFunc (uncurry1 f) (\inputs output -> (output * uncurry1 (diff f) inputs) :& RNil)
 
-makeBinary :: (Num a) => (forall b. Num b => b -> b -> b) -> GradFunc '[a, a] a
-makeBinary f = GradFunc (uncurry2 f) g where
+binaryGrad :: (Num a) => (forall b. Num b => b -> b -> b) -> GradFunc '[a, a] a
+binaryGrad f = GradFunc (uncurry2 f) g where
   g (x :& y :& RNil) output = dx :& dy :& RNil
     where [dx, dy] = map (output *) $ grad (\[a, b] -> f a b) [x, y]
 

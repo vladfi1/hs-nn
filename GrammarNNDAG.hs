@@ -92,7 +92,7 @@ encodeParent' :: forall tensor s parent children. (Tensor tensor, IntegralS s, K
 encodeParent' (EncodeParams' (ReprT bias) weights) inputs = do
   let linearT' m v = Comp $ K <$> linearT m v
   children <- map runReprT . collapse_NP <$> (sequence'_NP $ liftA2_NP' linearT' weights inputs)
-  parent <- case tensorNum of (C.Dict :: C.Dict (Num (tensor '[Size s parent]))) -> foldM (makeBinary (+)) bias children
+  parent <- foldM (makeBinary (+)) bias children
   ReprT <$> makeUnary tanh parent
 
 newtype EncodeParams tensor s t = EncodeParams { runEncodeParams :: NP (EncodeParams' tensor s t) (Code t) }
@@ -190,8 +190,8 @@ data DecodeParams tensor s t =
 instance HasNodes (DecodeParams tensor s t) where
   getNodes (DecodeParams aff params) = getNodes aff ++ concat (collapse_POP' $ liftA_POP' (K . getNodes) params)
 
-instance (Tensor tensor, KnownCode s t, KnownSize s t, KnownSizes s t) => DefaultM IO (DecodeParams tensor s t) where
-  defM = DecodeParams <$> defM <*> sequence'_POP (cpure_POP (Proxy::Proxy (KnownSize s)) (Comp defM))
+--instance (Tensor tensor, KnownCode s t, KnownSize s t, KnownSizes s t) => DefaultM IO (DecodeParams tensor s t) where
+--  defM = DecodeParams <$> defM <*> sequence'_POP (cpure_POP (Proxy::Proxy (KnownSize s)) (Comp defM))
 
 decodeParent :: forall tensor s t. (Tensor tensor, All2 (KnownSize s) (Code t), KnownCode s t) =>
   DecodeParams tensor s t -> ReprT tensor s t -> IO (SOP (ReprT tensor s) (Code t))
@@ -237,7 +237,7 @@ autoDecodeRec :: forall ts tensor s t. (Tensor tensor, KnownCode s t, All2 (Know
 
 autoDecodeRec autoDecoders Dict (DecodeParams aff params) = AutoDecoder f where
   autoDecoders' = cpure_POP (Proxy::Proxy (Find ts)) (Fn $ Comp . (K <$>) . runAutoDecoder (index find autoDecoders))
-  f :: Encoding a s t -> IO (Node a)
+  f :: Encoding tensor s t -> IO (Node (tensor '[]))
   f (Generic parent children) = do
     Repr node <- affine' aff (Repr $ runReprT parent)
     let i = ns2int (unSOP children)
@@ -248,7 +248,7 @@ autoDecodeRec autoDecoders Dict (DecodeParams aff params) = AutoDecoder f where
     let childReprs = liftA_SOP getRepr children
     let decodings = cliftA_POP (Proxy::Proxy (KnownSize s)) (Comp . flip affineIn parent) params
     
-    let dist :: forall t'. KnownSize s t' => (IO :.: ReprT tensor s) t' -> ReprT tensor s t' -> (IO :.: K (Node tensor)) t'
+    let dist :: forall t'. KnownSize s t' => (IO :.: ReprT tensor s) t' -> ReprT tensor s t' -> (IO :.: K (Node (tensor '[]))) t'
         dist dIO (ReprT c) = Comp $ do
           ReprT d <- unComp dIO
           diff <- makeBinary (-) d c

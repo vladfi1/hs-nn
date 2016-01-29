@@ -79,6 +79,8 @@ concat <$> traverse deriveGeneric
   ,''EnumConstant
   ,''ForInit
   ,''Catch
+  ,''LambdaParams
+  ,''LambdaExpression
   ]
 
 allGeneric :: Dict AllGeneric CompilationUnit
@@ -133,6 +135,8 @@ type GenericTypes =
   , ForInit
   , Catch
   , Bool
+  , LambdaParams
+  , LambdaExpression
   , [Char]
   , [(Ident, [TypeArgument])]
   , (Ident, [TypeArgument])

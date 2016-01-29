@@ -3,9 +3,10 @@
 --{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds, PolyKinds, ConstraintKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module JavaDAG where
 
@@ -26,10 +27,13 @@ import DefaultM
 import GrammarNNDAG
 import JavaGeneric
 import GHC.TypeLits
+import GenericTensor
 import TensorHMatrix
+import TensorDAG
 import DAGIO
 import Random
 import List
+import Constraints as C
 
 import Control.Monad
 import Data.IORef
@@ -37,6 +41,7 @@ import Data.IORef
 chars = [' ' .. '~']
 numChars = length chars -- 95
 
+-- TODO: use a Map
 unsafeIndex :: Eq a => a -> [a] -> Int
 unsafeIndex _ [] = error "Element not found."
 unsafeIndex a (x:xs) =
@@ -54,24 +59,28 @@ type family JavaSize t where
 
 type instance Size Java t = JavaSize t
 
-encodeParams :: (Default a, Usable a) => IO (NP (EncodeParams a Java) GenericTypes)
+encodeParams :: (Tensor t) => IO (NP (EncodeParams t Java) GenericTypes)
 encodeParams = sequence'_NP $ cpure_NP (Proxy::Proxy (And (KnownSize Java) (KnownSizes Java))) (Comp defM)
 
-encodeChar :: Usable a => Encoder a Java Char
-encodeChar = Encoder f where f c = Primitive . ReprT <$> makeSource (oneHot $ unsafeIndex c chars)
+encodeChar :: forall t. Tensor t => Encoder t Java Char
+encodeChar = case tensorFloat of (C.Dict :: C.Dict (Floating (t '[95]))) -> Encoder f
+  where f c = Primitive . ReprT <$> makeSource (oneHot $ unsafeIndex c chars)
 
-encodeInt :: Usable a => Encoder a Java Int
-encodeInt = Encoder f where f i = Primitive . ReprT <$> makeSource (fromIntegral i)
+encodeInt :: forall t. Tensor t => Encoder t Java Int
+encodeInt = case tensorFloat of (C.Dict :: C.Dict (Floating (t '[1]))) -> Encoder f
+  where f i = Primitive . ReprT <$> makeSource (fromIntegral i)
 
-encodeInteger :: Usable a => Encoder a Java Integer
-encodeInteger = Encoder f where f i = Primitive . ReprT <$> makeSource (fromIntegral i)
+encodeInteger :: forall t. Tensor t => Encoder t Java Integer
+encodeInteger = case tensorFloat of (C.Dict :: C.Dict (Floating (t '[1]))) -> Encoder f
+  where f i = Primitive . ReprT <$> makeSource (fromIntegral i)
 
-encodeDouble :: (Usable a, Fractional a) => Encoder a Java Double
-encodeDouble = Encoder f where f d = Primitive . ReprT <$> makeSource (realToFrac d)
+encodeDouble :: forall t. Tensor t => Encoder t Java Double
+encodeDouble = case tensorFloat of (C.Dict :: C.Dict (Floating (t '[1]))) -> Encoder f
+  where f d = Primitive . ReprT <$> makeSource (realToFrac d)
 
 primEncoders = encodeChar :& encodeInt :& encodeInteger :& encodeDouble :& RNil
 
-testEncoding :: IO (Encoding Float Java CompilationUnit)
+testEncoding :: IO (Encoding (HTensor Float) Java CompilationUnit)
 testEncoding = do
   java <- readFile "Test.java"
   let Right parsed = parser compilationUnit java
@@ -82,31 +91,32 @@ testEncoding = do
 
   runAnyEncoder encoder parsed
 
-decodeParams :: (Default a, Usable a) => IO (NP (DecodeParams a Java) GenericTypes)
+decodeParams :: (Tensor t) => IO (NP (DecodeParams t Java) GenericTypes)
 decodeParams = sequence'_NP $ cpure_NP (Proxy::Proxy (And (KnownCode Java) (And (KnownSize Java) (KnownSizes Java)))) (Comp defM)
 
-decodeChar :: forall a. (Real a, Usable a) => Decoder a Java Char
+{-
+decodeChar :: forall a. (Real a, Tensor t) => Decoder a Java Char
 decodeChar = Decoder f where
   f :: ReprT a Java Char -> IO Char
   f c = do
     Vector v <- evalNode (runReprT c)
     sample $ zip chars (map toRational $ toList v)
 
-decodeInt :: forall a. (RealFrac a, Usable a) => Decoder a Java Int
+decodeInt :: forall a. (RealFrac a, Tensor t) => Decoder a Java Int
 decodeInt = Decoder f where
   f :: ReprT a Java Int -> IO Int
   f i = do
     Vector v <- evalNode (runReprT i)
     return . round $ v ! 0
 
-decodeInteger :: forall a. (RealFrac a, Usable a) => Decoder a Java Integer
+decodeInteger :: forall a. (RealFrac a, Tensor t) => Decoder a Java Integer
 decodeInteger = Decoder f where
   f :: ReprT a Java Integer -> IO Integer
   f i = do
     Vector v <- evalNode (runReprT i)
     return . round $ v ! 0
 
-decodeDouble :: forall a. (Real a, Usable a) => Decoder a Java Double
+decodeDouble :: forall a. (Real a, Tensor t) => Decoder a Java Double
 decodeDouble = Decoder f where
   f :: ReprT a Java Double -> IO Double
   f i = do
@@ -119,8 +129,9 @@ javaDecoder :: IO (AnyDecoder Float Java AllTypes)
 javaDecoder = do
   params <- decodeParams
   return $ makeDecoder javaComplete params primDecoders
+-}
 
-primAutoDecoders :: Num a => Rec (AutoDecoder a Java) PrimTypes
+primAutoDecoders :: Tensor t => Rec (AutoDecoder t Java) PrimTypes
 primAutoDecoders = x :& x :& x :& x :& RNil where x = primAutoDecoder
 
 makeJavaAutoEncoder = do
@@ -130,12 +141,12 @@ makeJavaAutoEncoder = do
   return $ makeAutoEncoder javaComplete encodeParams' primEncoders decodeParams' primAutoDecoders
 
 main = do
-  encodeParams' <- encodeParams
+  encodeParams' :: NP (EncodeParams (HTensor Float) Java) GenericTypes <- encodeParams
   decodeParams' <- decodeParams
   
   let params = concat $ collapse_NP (liftA_NP (K . getNodes) encodeParams') ++ collapse_NP (liftA_NP (K . getNodes) decodeParams')
   
-  let decoder = makeDecoder javaComplete decodeParams' primDecoders
+  --let decoder = makeDecoder javaComplete decodeParams' primDecoders
   
   let autoEncoder = makeAutoEncoder javaComplete encodeParams' primEncoders decodeParams' primAutoDecoders
 
@@ -157,7 +168,7 @@ main = do
         traverse learn params
 
   traverse (const train) [1..1000]
-
-  j :: CompilationUnit <- runAnyDecoder decoder =<< defM
-  putStrLn $ prettyPrint j
+  
+  --j :: CompilationUnit <- runAnyDecoder decoder =<< defM
+  --putStrLn $ prettyPrint j
 

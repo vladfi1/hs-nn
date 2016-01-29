@@ -27,7 +27,6 @@ import Prelude hiding (zipWith)
 -- the kitchen sink of constraints
 type Usable a = (Element a, Num a, Numeric a, Num (Vector a), Container Vector a, Floating a, Floating (Vector a))
 
--- TODO: make this a data family?
 data HTensor a (dims :: [k]) where
   Scalar :: !a -> HTensor a '[]
   Vector :: Vector a -> HTensor a '[n]

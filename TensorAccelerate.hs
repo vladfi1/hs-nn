@@ -118,3 +118,6 @@ instance (Elt a, IsFloating a) => ImpliesC (IntegralL dims) (CompC Floating (ATe
 instance (Elt a, IsFloating a) => ForallC (ImpliesC1 IntegralL (CompC Floating (ATensor a))) where
   forallC = Forall Dict
 
+instance (Elt a) => Show (ATensor a dims) where
+  show (ATensor a) = show a
+

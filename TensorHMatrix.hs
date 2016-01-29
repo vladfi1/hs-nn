@@ -121,54 +121,71 @@ instance (IntegralL dims, Usable a) => Floating (HTensor a dims) where
 
   exp (Scalar a) = Scalar (exp a)
   exp (Vector a) = Vector (exp a)
+  exp (Matrix a) = Matrix (exp a)
   
   log (Scalar a) = Scalar (log a)
   log (Vector a) = Vector (log a)
+  log (Matrix a) = Matrix (log a)
 
   sqrt (Scalar a) = Scalar (sqrt a)
   sqrt (Vector a) = Vector (sqrt a)
+  sqrt (Matrix a) = Matrix (sqrt a)
 
   Scalar a ** Scalar b = Scalar (a ** b)
   Vector a ** Vector b = Vector (a ** b)
+  Matrix a ** Matrix b = Matrix (a ** b)
 
   logBase (Scalar a) (Scalar b) = Scalar (logBase a b)
   logBase (Vector a) (Vector b) = Vector (logBase a b)
+  logBase (Matrix a) (Matrix b) = Matrix (logBase a b)
 
   sin (Scalar a) = Scalar (sin a)
   sin (Vector a) = Vector (sin a)
+  sin (Matrix a) = Matrix (sin a)
 
   cos (Scalar a) = Scalar (cos a)
   cos (Vector a) = Vector (cos a)
+  cos (Matrix a) = Matrix (cos a)
 
   tan (Scalar a) = Scalar (tan a)
   tan (Vector a) = Vector (tan a)
+  tan (Matrix a) = Matrix (tan a)
 
   asin (Scalar a) = Scalar (asin a)
   asin (Vector a) = Vector (asin a)
+  asin (Matrix a) = Matrix (asin a)
 
   acos (Scalar a) = Scalar (acos a)
   acos (Vector a) = Vector (acos a)
+  acos (Matrix a) = Matrix (acos a)
 
   atan (Scalar a) = Scalar (atan a)
   atan (Vector a) = Vector (atan a)
+  atan (Matrix a) = Matrix (atan a)
 
   sinh (Scalar a) = Scalar (sinh a)
   sinh (Vector a) = Vector (sinh a)
+  sinh (Matrix a) = Matrix (sinh a)
 
   cosh (Scalar a) = Scalar (cosh a)
   cosh (Vector a) = Vector (cosh a)
+  cosh (Matrix a) = Matrix (cosh a)
 
   tanh (Scalar a) = Scalar (tanh a)
   tanh (Vector a) = Vector (tanh a)
+  tanh (Matrix a) = Matrix (tanh a)
 
   asinh (Scalar a) = Scalar (asinh a)
   asinh (Vector a) = Vector (asinh a)
+  asinh (Matrix a) = Matrix (asinh a)
 
   acosh (Scalar a) = Scalar (acosh a)
   acosh (Vector a) = Vector (acosh a)
+  acosh (Matrix a) = Matrix (acosh a)
 
   atanh (Scalar a) = Scalar (atanh a)
   atanh (Vector a) = Vector (atanh a)
+  atanh (Matrix a) = Matrix (atanh a)
 
 instance Usable a => ImpliesC (IntegralL dims) (CompC Floating (HTensor a) dims) where
   impliesC = Sub Dict

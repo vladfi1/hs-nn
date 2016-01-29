@@ -29,6 +29,7 @@ import JavaGeneric
 import GHC.TypeLits
 import GenericTensor
 import TensorHMatrix
+import TensorAccelerate
 import TensorDAG
 import DAGIO
 import Random
@@ -140,8 +141,9 @@ makeJavaAutoEncoder = do
   
   return $ makeAutoEncoder javaComplete encodeParams' primEncoders decodeParams' primAutoDecoders
 
-main = do
-  encodeParams' :: NP (EncodeParams (HTensor Float) Java) GenericTypes <- encodeParams
+main :: forall (t :: [Nat] -> *). (Tensor t, Show (t '[])) => Proxy t -> IO ()
+main _ = do
+  encodeParams' :: NP (EncodeParams t Java) GenericTypes <- encodeParams
   decodeParams' <- decodeParams
   
   let params = concat $ collapse_NP (liftA_NP (K . getNodes) encodeParams') ++ collapse_NP (liftA_NP (K . getNodes) decodeParams')
@@ -163,7 +165,7 @@ main = do
         error <- evalNodeTape tape loss
         print error
         
-        setLearningRate (-0.001) loss
+        case tensorFloat of (C.Dict :: C.Dict (Floating (t '[]))) -> setLearningRate (-0.001) loss
         backprop =<< readIORef tape
         traverse learn params
 
@@ -171,4 +173,6 @@ main = do
   
   --j :: CompilationUnit <- runAnyDecoder decoder =<< defM
   --putStrLn $ prettyPrint j
+  
+  return ()
 

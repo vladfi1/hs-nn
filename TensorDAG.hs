@@ -50,10 +50,13 @@ makeUnary f = case tensorFloat of (Dict :: Dict (Floating (t dims))) -> makeNode
 makeBinary :: forall t dims. (Tensor t, IntegralL dims) => (forall b. Floating b => b -> b -> b) -> Node (t dims) -> Node (t dims) -> IO (Node (t dims))
 makeBinary f = case tensorFloat of (Dict :: Dict (Floating (t dims))) -> makeNode (binaryGrad f)
 
+makeSource' :: forall t dims. (Tensor t, IntegralL dims) => t dims -> IO (Node (t dims))
+makeSource' t = case tensorFloat of (Dict :: Dict (Floating (t dims))) -> makeSource t
+
 test :: forall p (t :: [Nat] -> *). (Tensor t, Show (N t)) => p t -> IO ()
 test _ = do
-  m <- case tensorFloat of (Dict :: Dict (Floating (t '[Two, Two]))) -> makeSource $ fill (SCons s2 $ SCons s2 SNil) 1
-  v <- case tensorFloat of (Dict :: Dict (Floating (t '[Two]))) -> makeSource $ (oneHot 0 :: t '[Two])
+  m <- makeSource' $ fill (SCons s2 $ SCons s2 SNil) 1
+  v <- makeSource' $ (oneHot 0 :: t '[Two])
   
   mv <- makeMV m v
   vmv <- makeDot v mv

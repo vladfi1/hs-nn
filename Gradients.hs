@@ -8,7 +8,7 @@ import Data.Vinyl
 import Data.Vinyl.Functor
 import Numeric.AD
 
-import VarArgs
+import Misc.VarArgs
 
 -- orphan instance :(
 deriving instance Num a => Num (Identity a)

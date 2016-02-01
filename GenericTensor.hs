@@ -17,8 +17,8 @@ module GenericTensor where
 
 import GHC.Exts (Constraint)
 import Gradients
-import VarArgs
-import Constraints
+import Misc.VarArgs
+import Misc.Constraints
 import Generics.SOP.Constraint as C
 
 import Data.Singletons.Prelude 

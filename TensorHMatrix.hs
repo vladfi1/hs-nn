@@ -13,13 +13,13 @@
 
 module TensorHMatrix where
 
-import Nats
+import Misc.Nats
 import Numeric.LinearAlgebra as H
 import Data.Vector.Storable as V
 import Data.Default
 import Data.Singletons.Prelude
 import Generics.SOP.Constraint as C
-import Constraints
+import Misc.Constraints
 import GenericTensor
 
 import Prelude hiding (zipWith)

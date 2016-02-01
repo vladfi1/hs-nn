@@ -12,17 +12,19 @@ import Data.IORef
 
 import Data.Vinyl
 import Data.Vinyl.Functor
-import VinylUtils
+import Misc.VinylUtils
 
 import Control.Applicative hiding (Const)
 import Control.Monad
 import Data.Traversable
 
-import VarArgs
+import Misc.VarArgs
+import Prelude hiding (curry)
+
 import Gradients
 
 import Data.Default
-import DefaultM
+import Misc.DefaultM
 
 data Some f where
   Some :: f a -> Some f
@@ -55,7 +57,7 @@ instance (Num a) => DefaultM IO (Node a) where
     defM = makeSource 0
 
 makeNode :: (Num output) => Curry Node inputs (IO (Node output)) c => GradFunc inputs output -> c
-makeNode GradFunc{..} = VarArgs.curry f where
+makeNode GradFunc{..} = curry f where
   f inputs = do
     ins <- rtraverse readNode inputs
     output <- newIORef (function ins)

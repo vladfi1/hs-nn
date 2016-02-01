@@ -21,7 +21,7 @@ import Data.Array.Accelerate.Interpreter
 
 import Data.Singletons.Prelude hiding ((:.))
 import GenericTensor
-import Constraints
+import Misc.Constraints
 import Generics.SOP.Constraint as C
 
 type family Dims2Shape (dims :: [k]) :: * where

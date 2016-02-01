@@ -11,14 +11,14 @@ import Data.IORef
 --import Data.Vinyl
 --import Data.Vinyl.Functor
 import Data.Singletons.Prelude hiding ((:-))
---import Numeric.LinearAlgebra (Numeric)
 import DAGIO
 import GenericTensor
 import Gradients
-import VarArgs
 import Data.Constraint
-import Constraints
-import Nats
+
+import Misc.VarArgs
+import Misc.Constraints
+import Misc.Nats
 
 tensorFloat :: forall t dims. (Tensor t, IntegralL dims) => Dict (Floating (t dims))
 tensorFloat =
@@ -66,18 +66,18 @@ test _ = do
   loss <- makeBinary (/) vmv v2
   
   let train = do
-      print "Step"
-      
-      tape <- newIORef []
-      resetNode loss
-      error <- evalNodeTape tape loss
-      print (scalar <$> error)
-      
-      case tensorFloat of (Dict :: Dict (Floating (t '[]))) -> setLearningRate (0.001) loss
-      backprop =<< readIORef tape
-      ascend (Some v)
+        print "Step"
+        
+        tape <- newIORef []
+        resetNode loss
+        error <- evalNodeTape tape loss
+        print (scalar <$> error)
+        
+        case tensorFloat of (Dict :: Dict (Floating (t '[]))) -> setLearningRate (0.001) loss
+        backprop =<< readIORef tape
+        ascend (Some v)
 
-  traverse (const train) [1..1000]
+  traverse (const train) [1..100]
   
   return ()
 

@@ -12,6 +12,8 @@ import VarArgs
 
 -- orphan instance :(
 deriving instance Num a => Num (Identity a)
+deriving instance Fractional a => Fractional (Identity a)
+deriving instance Floating a => Floating (Identity a)
 
 data GradFunc inputs output =
   GradFunc
@@ -23,7 +25,7 @@ data GradFunc inputs output =
 unaryGrad :: (Floating a) => (forall b. Floating b => b -> b) -> GradFunc '[a] a
 unaryGrad f = GradFunc (uncurry1 f) (\inputs output -> (output * uncurry1 (diff f) inputs) :& RNil)
 
-binaryGrad :: (Num a) => (forall b. Num b => b -> b -> b) -> GradFunc '[a, a] a
+binaryGrad :: (Floating a) => (forall b. Floating b => b -> b -> b) -> GradFunc '[a, a] a
 binaryGrad f = GradFunc (uncurry2 f) g where
   g (x :& y :& RNil) output = dx :& dy :& RNil
     where [dx, dy] = map (output *) $ grad (\[a, b] -> f a b) [x, y]

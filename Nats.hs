@@ -95,6 +95,11 @@ instance Show Nat where
 instance Show (SNat n) where
   show = show . fromSing
 
+type Zero = Z
+type One = S Zero
+type Two = S One
+type Three = S Two
+
 s0 = SZ
 s1 = SS s0
 s2 = SS s1

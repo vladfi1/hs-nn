@@ -34,15 +34,8 @@ data HTensor a (dims :: [k]) where
 
 deriving instance (Show a, Element a) => Show (HTensor a dims)
 
-fill :: forall a dims. (IntegralL dims, Num a, Container Vector a) => a -> HTensor a dims
-fill a = case (sing :: Sing dims) of
-  SNil -> Scalar a
-  SCons n SNil -> Vector $ konst a (natVal' n)
-  SCons m (SCons n SNil) -> Matrix $ konst a (natVal' m, natVal' n)
-  _ -> error "HTensors only go up to dimension 2."
-
-instance (IntegralL dims, Default a, Num a, Container Vector a) => Default (HTensor a dims) where
-  def = fill def
+instance (IntegralL dims, Default a, Usable a) => Default (HTensor a dims) where
+  def = fill' def
 
 --type instance IndexOf (HTensor l) = Rec LT l
 --type instance IndexOf (HTensor l) = Rec (Const Int) l
@@ -56,6 +49,8 @@ instance Indexable (HTensor (n ': l) a) (HTensor l a) where
 
 instance Usable a => Tensor (HTensor a :: [k] -> *) where
   type N (HTensor a) = a
+  
+  scalar (Scalar a) = a
 
   transpose (Matrix m) = Matrix (tr' m)
   
@@ -73,6 +68,13 @@ instance Usable a => Tensor (HTensor a :: [k] -> *) where
 
   oneHot :: forall (n :: k). (SingI n, IntegralN n) => Int -> HTensor a '[n]
   oneHot i = Vector $ (konst 0 (natVal' (sing::Sing n))) // [(i, 1)]
+
+  --fill :: forall (dims :: [k]). (IntegralL dims) => a -> HTensor a dims
+  fill sDims a = case sDims of
+    SNil -> Scalar a
+    SCons n SNil -> Vector $ konst a (natVal' n)
+    SCons m (SCons n SNil) -> Matrix $ konst a (natVal' m, natVal' n)
+    _ -> error "HTensors only go up to dimension 2."
 
 -- pretty much all of these instances should be automatically derivable
 -- the only issue is that fromInteger needs to use natVal'
@@ -103,7 +105,7 @@ instance (Usable a, IntegralL dims) => Num (HTensor a dims) where
   signum (Matrix a) = Matrix (signum a)
   
   
-  fromInteger = fill . fromInteger
+  fromInteger = fill' . fromInteger
 
 instance (IntegralL dims, Usable a) => Fractional (HTensor a dims) where
   Scalar a / Scalar b = Scalar (a / b)
@@ -114,10 +116,10 @@ instance (IntegralL dims, Usable a) => Fractional (HTensor a dims) where
   recip (Vector a) = Vector (recip a)
   recip (Matrix a) = Matrix (recip a)
 
-  fromRational = fill . fromRational
+  fromRational = fill' . fromRational
 
 instance (IntegralL dims, Usable a) => Floating (HTensor a dims) where
-  pi = fill pi
+  pi = fill' pi
 
   exp (Scalar a) = Scalar (exp a)
   exp (Vector a) = Vector (exp a)

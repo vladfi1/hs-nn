@@ -3,12 +3,14 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 --{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 module TensorDAG where
 
+import Data.IORef
 --import Data.Vinyl
 --import Data.Vinyl.Functor
---import Data.Singletons
+import Data.Singletons.Prelude hiding ((:-))
 --import Numeric.LinearAlgebra (Numeric)
 import DAGIO
 import GenericTensor
@@ -16,6 +18,7 @@ import Gradients
 import VarArgs
 import Data.Constraint
 import Constraints
+import Nats
 
 tensorFloat :: forall t dims. (Tensor t, IntegralL dims) => Dict (Floating (t dims))
 tensorFloat =
@@ -29,6 +32,7 @@ makeDot = case tensorFloat of (Dict :: Dict (Floating (t '[]))) -> makeNode grad
 --mvFun :: Tensor t => GradFunc '[t '[n, m] a, t '[m] a] (t '[n] a)
 --mvFun = GradFunc (uncurry2 mv) (makeGrad2 gradMV)
 
+-- why constraint on n and not m?
 makeMV :: forall t n m. (Tensor t, IntegralN n) => Node (t '[n, m]) -> Node (t '[m]) -> IO (Node (t '[n]))
 makeMV = case tensorFloat of (Dict :: Dict (Floating (t '[n]))) -> makeNode gradMV
 
@@ -43,6 +47,34 @@ makeSelect i = case tensorFloat of (Dict :: Dict (Floating (t '[]))) -> makeNode
 makeUnary :: forall t dims. (Tensor t, IntegralL dims) => (forall b. Floating b => b -> b) -> Node (t dims) -> IO (Node (t dims))
 makeUnary f = case tensorFloat of (Dict :: Dict (Floating (t dims))) -> makeNode (unaryGrad f)
 
-makeBinary :: forall t dims. (Tensor t, IntegralL dims) => (forall b. Num b => b -> b -> b) -> Node (t dims) -> Node (t dims) -> IO (Node (t dims))
+makeBinary :: forall t dims. (Tensor t, IntegralL dims) => (forall b. Floating b => b -> b -> b) -> Node (t dims) -> Node (t dims) -> IO (Node (t dims))
 makeBinary f = case tensorFloat of (Dict :: Dict (Floating (t dims))) -> makeNode (binaryGrad f)
+
+test :: forall p (t :: [Nat] -> *). (Tensor t, Show (N t)) => p t -> IO ()
+test _ = do
+  m <- case tensorFloat of (Dict :: Dict (Floating (t '[Two, Two]))) -> makeSource $ fill (SCons s2 $ SCons s2 SNil) 1
+  v <- case tensorFloat of (Dict :: Dict (Floating (t '[Two]))) -> makeSource $ (oneHot 0 :: t '[Two])
+  
+  mv <- makeMV m v
+  vmv <- makeDot v mv
+  
+  v2 <- makeDot v v
+  
+  loss <- makeBinary (/) vmv v2
+  
+  let train = do
+      print "Step"
+      
+      tape <- newIORef []
+      resetNode loss
+      error <- evalNodeTape tape loss
+      print (scalar <$> error)
+      
+      case tensorFloat of (Dict :: Dict (Floating (t '[]))) -> setLearningRate (0.001) loss
+      backprop =<< readIORef tape
+      ascend (Some v)
+
+  traverse (const train) [1..1000]
+  
+  return ()
 

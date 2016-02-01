@@ -117,10 +117,14 @@ backprop tape = traverse f tape where
 
 setLearningRate rate Node{..} = writeIORef gradOutput (Identity rate)
 
-learn (Some Node{..}) = do
+ascend (Some Node{..}) = do
   grad <- readIORef gradOutput
-  modifyIORef output (grad+)
+  modifyIORef output (+ grad)
 
+descend (Some Node{..}) = do
+  grad <- readIORef gradOutput
+  modifyIORef output (\o -> o - grad) 
+  
 {-
 testGrad = do
   param <- makeSource 0

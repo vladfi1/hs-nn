@@ -35,12 +35,25 @@ instance (IntegralK ('KProxy :: KProxy k), SingI l, C.All SingI l) => IntegralL 
 natVal' :: (Num a, IntegralN n) => Sing n -> a
 natVal' = fromIntegral . fromSing
 
--- FIXME: these functions are not very general :(
--- TODO: impose singleton constraints on dimensions? or let the constructors handle this?
-class ForallC (ImpliesC1 IntegralL (CompC Floating t)) => Tensor (t :: [k] -> *) where
+{-
+FIXME: These functions are not very general. It might be possible to
+       provide more basic tensor ops and reimplement these methods in
+       terms of the more basic operations.
+FIXME: Floating is too hard of a constraint - we might want to use Ints!
+       We use it here to make typechecking easier later - code that only
+       assumes (Tensor t) and (IntegralL dims) can deduce Floating. It may
+       also be better to provide this implication as a method rather than
+       as a superclass constraint.
+TODO: Randomness? People might want to do dropout or sample on the GPU.
+-}
+class (ForallC (ImpliesC1 IntegralL (CompC Floating t)), Num (N t)) => Tensor (t :: [k] -> *) where
+  -- the underlying numeric type
   type N t :: *
   
-  --fill :: (IntegralL dims, Sing dims) => 
+  -- TODO: extract the whole Tensor?
+  scalar :: t '[] -> N t
+  
+  fill :: (IntegralL dims) => Sing dims -> N t -> t dims
   
   asCol :: t '[n] -> t '[n, FromInteger 1]
   asRow :: t '[n] -> t '[FromInteger 1, n]
@@ -57,10 +70,13 @@ class ForallC (ImpliesC1 IntegralL (CompC Floating t)) => Tensor (t :: [k] -> *)
   mv :: t '[n, m] -> t '[m] -> t '[n]
   mm :: t '[n, m] -> t '[m, p] -> t '[n, p]
   
-  --select :: N t => Int -> t (n ': dims) -> t dims
   select :: Int -> t '[n] -> t '[]
   
-  oneHot :: (SingI n, IntegralN n) => Int -> t '[n]
+  -- implement in terms of fill?
+  oneHot :: (IntegralN n) => Int -> t '[n]
+
+fill' :: (IntegralL dims, Tensor t) => N t -> t dims
+fill' = fill sing
 
 gradDot :: (Tensor t) => GradFunc '[t '[n], t '[n]] (t '[])
 gradDot = GradFunc (uncurry2 dot) (makeGrad2 $ \a b g -> (scale g b, scale g a))

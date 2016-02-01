@@ -17,6 +17,8 @@ module TensorAccelerate where
 
 import Data.Array.Accelerate hiding (fill)
 import qualified Data.Array.Accelerate as A
+import Data.Array.Accelerate.Interpreter
+
 import Data.Singletons.Prelude hiding ((:.))
 import GenericTensor
 import Constraints
@@ -32,6 +34,9 @@ data ATensor a (dims :: [k]) where
 instance (Elt a, IsFloating a) => Tensor (ATensor a :: [k] -> *) where
   type N (ATensor a) = a
   
+  scalar (ATensor a) = indexArray (run a) Z
+  
+  -- TODO: implement
   --asCol :: N t a => t '[n] a -> t '[n, FromInteger 1] a
   --asRow :: N t a => t '[n] a -> t '[FromInteger 1, n] a
   
@@ -41,27 +46,31 @@ instance (Elt a, IsFloating a) => Tensor (ATensor a :: [k] -> *) where
   
   dot (ATensor a) (ATensor b) = ATensor $ A.fold (+) 0 $ A.zipWith (*) a b
   
+  outer (ATensor a) (ATensor b) = ATensor $ A.zipWith (*) as bs where
+    n = A.size a
+    m = A.size b
+    
+    as = A.replicate (lift $ Z :. All :. m) a
+    bs = A.replicate (lift $ Z :. n :. All) b
+
   mv (ATensor m) (ATensor v) = ATensor $ A.fold (+) 0 $ A.zipWith (*) m vs
     where
       n = indexHead . indexTail $ shape m
       vs = A.replicate (lift $ Z :. n :. All) v
 
-  {-
-  mm :: (N t a) => t '[n, m] a -> t '[m, p] a -> t '[n, p] a
-  -}
-  
-  {-
-  select :: forall n dims a. (N ATensor a) => Int -> ATensor (n ': dims) a -> ATensor dims a
-  select i (ATensor a) =
-    case (sDims :: SDims (n ': dims)) of
-      DimsS -> ATensor $ slice a (lift $ Any :. i)
-  -}
+  -- TODO: implement
+  --mm :: (N t a) => t '[n, m] a -> t '[m, p] a -> t '[n, p] a
   
   select i (ATensor a) = ATensor $ slice a (lift $ Any :. i)
   
   -- FIXME: constant has bad performance?
+  --fill :: forall (dims :: [k]). (IntegralL dims) => a -> ATensor a dims
+  fill sDims a = case proveShape sDims of Dict -> ATensor $ A.fill (constant $ dims2Shape sDims) (constant a)
+  
+  -- FIXME: constant has bad performance?
   oneHot :: forall (n :: k). (IntegralN n) => Int -> ATensor a '[n]
-  oneHot i = ATensor $ generate (constant $ Z :. natVal' (sing :: Sing n)) (\j -> cond (constant i ==* unindex1 j) 1 0)
+  oneHot i = ATensor $ generate (constant $ Z :. natVal' (sing :: Sing n)) (\j -> cond (i' ==* unindex1 j) 1 0)
+    where i' = constant i
 
 proveShape :: SList dims -> Dict (Shape (Dims2Shape dims))
 proveShape SNil = Dict
@@ -72,26 +81,22 @@ dims2Shape :: forall (dims :: [k]). (IntegralK ('KProxy :: KProxy k), C.All Sing
 dims2Shape SNil = Z
 dims2Shape (SCons n l) = dims2Shape l :. natVal' n
 
-fill :: forall a dims. (IntegralL dims, Elt a) => a -> ATensor a dims
-fill a = case proveShape sDims of Dict -> ATensor $ A.fill (constant $ dims2Shape sDims) (constant a)
-    where sDims = sing :: SList dims
-
-instance (IntegralL dims, Elt a, IsNum a) => Num (ATensor a dims) where
+instance (IntegralL dims, Elt a, IsFloating a) => Num (ATensor a dims) where
   ATensor a + ATensor b = ATensor $ A.zipWith (+) a b
   ATensor a - ATensor b = ATensor $ A.zipWith (-) a b
   ATensor a * ATensor b = ATensor $ A.zipWith (*) a b
   negate (ATensor a) = ATensor (A.map negate a)
   abs (ATensor a) = ATensor (A.map abs a)
   signum (ATensor a) = ATensor (A.map signum a)
-  fromInteger n = fill (fromInteger n)
+  fromInteger n = fill' (fromInteger n)
 
 instance (IntegralL dims, Elt a, IsFloating a) => Fractional (ATensor a dims) where
   ATensor a / ATensor b = ATensor $ A.zipWith (/) a b
   recip (ATensor a) = ATensor $ A.map recip a
-  fromRational r = fill (fromRational r)
+  fromRational r = fill' (fromRational r)
 
 instance (IntegralL dims, Elt a, IsFloating a) => Floating (ATensor a dims) where
-  pi = fill pi
+  pi = fill' pi
   
   exp (ATensor a) = ATensor $ A.map exp a
   log (ATensor a) = ATensor $ A.map log a

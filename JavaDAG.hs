@@ -141,7 +141,7 @@ makeJavaAutoEncoder = do
   
   return $ makeAutoEncoder javaComplete encodeParams' primEncoders decodeParams' primAutoDecoders
 
-main :: forall (t :: [Nat] -> *). (Tensor t, Show (t '[])) => Proxy t -> IO ()
+main :: forall (t :: [Nat] -> *). (Tensor t, Show (N t)) => Proxy t -> IO ()
 main _ = do
   encodeParams' :: NP (EncodeParams t Java) GenericTypes <- encodeParams
   decodeParams' <- decodeParams
@@ -160,14 +160,16 @@ main _ = do
   loss <- runAnyAutoEncoder autoEncoder parsed
   
   let train = do
+        print "Step"
+        
         tape <- newIORef []
         resetNode loss
         error <- evalNodeTape tape loss
-        print error
+        print (scalar <$> error)
         
-        case tensorFloat of (C.Dict :: C.Dict (Floating (t '[]))) -> setLearningRate (-0.001) loss
+        case tensorFloat of (C.Dict :: C.Dict (Floating (t '[]))) -> setLearningRate (0.001) loss
         backprop =<< readIORef tape
-        traverse learn params
+        traverse descend params
 
   traverse (const train) [1..1000]
   

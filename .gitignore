@@ -4,3 +4,5 @@
 *.dyn_o
 dist
 
+.cabal-sandbox/
+cabal.sandbox.config

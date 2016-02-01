@@ -1,3 +1,9 @@
-module TestAccelerate where
+{-# LANGUAGE PolyKinds #-}
 
-main = undefined
+module Main where
+
+import TensorAccelerate
+import TensorDAG
+import Data.Proxy
+
+main = test (Proxy :: Proxy (ATensor Float))

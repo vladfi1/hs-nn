@@ -27,12 +27,12 @@ library
                , singletons
                , vinyl
                , constraints
-  -- hs-source-dirs:      
+  hs-source-dirs:      src
   default-language:    Haskell2010
 
 executable test-accelerate
   main-is:             TestAccelerate.hs
   build-depends:       base, hs-nn, accelerate
-  ghc-options:         -O
+  ghc-options:         -O -fprof-auto "-with-rtsopts=-p -s -h"
   default-language:    Haskell2010
 

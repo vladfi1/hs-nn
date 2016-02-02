@@ -6,4 +6,4 @@ import TensorAccelerate
 import TensorDAG
 import Data.Proxy
 
-main = test (Proxy :: Proxy (ATensor Float))
+main = test (Proxy :: Proxy (ATensor Interpreter Float))

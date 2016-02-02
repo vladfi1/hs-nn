@@ -44,7 +44,7 @@ FIXME: Floating is too hard of a constraint - we might want to use Ints!
        assumes (Tensor t) and (IntegralL dims) can deduce Floating. It may
        also be better to provide this implication as a method rather than
        as a superclass constraint.
-TODO: Randomness? People might want to do dropout or sample on the GPU.
+TODO: Randomness? People might want to do dropout, sample on the GPU, variational auto-encoding.
 -}
 class (ForallC (ImpliesC1 IntegralL (CompC Floating t)), Num (N t)) => Tensor (t :: [k] -> *) where
   -- the underlying numeric type

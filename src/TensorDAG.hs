@@ -71,13 +71,19 @@ test _ = do
         tape <- newIORef []
         resetNode loss
         error <- evalNodeTape tape loss
-        print (scalar <$> error)
+        --print (scalar <$> error)
         
         case tensorFloat of (Dict :: Dict (Floating (t '[]))) -> setLearningRate (0.001) loss
         backprop =<< readIORef tape
         ascend (Some v)
 
   traverse (const train) [1..100]
+  
+  tape <- newIORef []
+  resetNode loss
+  error <- evalNodeTape tape loss
+  print (scalar <$> error)
+
   
   return ()
 

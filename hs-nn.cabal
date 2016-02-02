@@ -28,11 +28,13 @@ library
                , vinyl
                , constraints
   hs-source-dirs:      src
+  -- ghc-options:         -O -fprof-auto
   default-language:    Haskell2010
 
-executable test-accelerate
-  main-is:             TestAccelerate.hs
+executable profile-accelerate
+  main-is:             Main.hs
   build-depends:       base, hs-nn, accelerate
+  hs-source-dirs:      profile-accelerate
   ghc-options:         -O -fprof-auto "-with-rtsopts=-p -s -h"
   default-language:    Haskell2010
 

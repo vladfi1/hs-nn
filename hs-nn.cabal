@@ -38,3 +38,11 @@ executable profile-accelerate
   ghc-options:         -O -fprof-auto "-with-rtsopts=-p -s -h"
   default-language:    Haskell2010
 
+executable profile-cuda
+  main-is:             Main.hs
+  build-depends:       base, hs-nn, accelerate, accelerate-cuda
+  hs-source-dirs:      profile-cuda
+  ghc-options:         -O -threaded -fprof-auto "-with-rtsopts=-p -s -h"
+  default-language:    Haskell2010
+
+

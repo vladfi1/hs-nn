@@ -50,6 +50,10 @@ class (ForallC (ImpliesC1 IntegralL (CompC Floating t)), Num (N t)) => Tensor (t
   -- the underlying numeric type
   type N t :: *
   
+  -- optimisation
+  compute :: t dims -> t dims
+  compute = id
+  
   -- TODO: extract the whole Tensor?
   scalar :: t '[] -> N t
   

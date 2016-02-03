@@ -46,13 +46,16 @@ instance Backend Interpreter where
 instance (Elt a, IsFloating a, Backend b) => Tensor (ATensor b a :: [k] -> *) where
   type N (ATensor b a) = a
   
+  -- provided in accelerate-2.0.0.0
+  compute (ATensor a) = ATensor $ (id >-> id) a
+  
   scalar (ATensor a) = indexArray (run (Proxy::Proxy b) a) Z
   
   -- TODO: implement
   --asCol :: N t a => t '[n] a -> t '[n, FromInteger 1] a
   --asRow :: N t a => t '[n] a -> t '[FromInteger 1, n] a
   
-  transpose (ATensor a) = ATensor (A.transpose a)
+  transpose (ATensor a) = ATensor $ A.transpose a
   
   scale (ATensor a) (ATensor v) = ATensor $ A.map (the a *) v 
   

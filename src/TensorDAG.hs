@@ -19,7 +19,8 @@ import Data.Constraint
 
 import Misc.VarArgs
 import Misc.Constraints
-import Misc.Nats
+import GHC.TypeLits
+import Data.Proxy
 
 tensorFloat :: forall t dims. (Tensor t, IntegralL dims) => Dict (Floating (t dims))
 tensorFloat =
@@ -69,10 +70,10 @@ makeBinary f = case tensorFloat of (Dict :: Dict (Floating (t dims))) -> makeNod
 makeSource' :: forall t dims. (Tensor t, IntegralL dims) => t dims -> IO (Node (t dims))
 makeSource' t = case tensorFloat of (Dict :: Dict (Floating (t dims))) -> makeSource t
 
-test :: forall p (t :: [Nat] -> *). (Tensor t, Show (N t)) => p t -> IO ()
+test :: forall (t :: [Nat] -> *). (Tensor t, Show (N t)) => Proxy t -> IO ()
 test _ = do
-  m <- makeSource' $ fill (SCons s2 $ SCons s2 SNil) 1
-  v <- makeSource' $ (oneHot 0 :: t '[Two])
+  m <- makeSource' $ (fill' 1 :: t '[100, 100])
+  v <- makeSource' $ (oneHot 0 :: t '[100])
   
   mv <- makeMV m v
   vmv <- makeDot v mv
